@@ -1,0 +1,7 @@
+# UI package
+PySimpleGUI
+
+# Linux motor control package
+pystage_apt >= 0.4 
+
+# Windows motor control package
