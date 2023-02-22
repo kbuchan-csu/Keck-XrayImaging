@@ -32,7 +32,7 @@ def main () -> int:
 
     tk.Button(window, text="Add Motor", command=lambda: active_motors.append(add_motor_new_control(window, stages))).pack()
     window.mainloop()
-
+    
     return 0        # Return good exit code
 
 if __name__ == "__main__":
