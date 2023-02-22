@@ -38,11 +38,11 @@ class stage:
             self.poss = 0
             print("Platform not supported")
 
-    def goto (self, postion):
+    def goto (self, position):
         if self.platform == 'linux':
             self.stage.set_pos(position, blocking=True)
         else:
-            self.poss = postion
+            self.poss = position
             print("Platform not supported")
 
     def step (self, dist):
