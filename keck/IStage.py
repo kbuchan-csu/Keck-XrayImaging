@@ -1,10 +1,11 @@
 import sys
 import tkinter as tk
 import stage.motor_ini.core as stg
+#import optosigma as OPTO
 
 # Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
 class stage:
-    def __init__ (self, stage, stage_id):
+    def __init__ (self, stage, stage_id, name=None, saved_positions=[], limits=[], step_size=0.000030):
         self.platform = sys.platform
         if stage == "NOSTAGE":
             self.platform = "TEST"
@@ -15,12 +16,19 @@ class stage:
 
         self.stage = stage 
         self.id = stage_id
-        self.name = tk.StringVar(value=f"stage {stage_id}")
-        self.step_size = 0.000030 # Default 30 nm (smallest possible step size)
+
+        if name is None:
+            name = f"stage {stage_id}"
+
+        self.name = tk.StringVar(value=name)
+        self.step_size = step_size # Default 30 nm (smallest possible step size)
         self.acceleration = 0.
 
         self.poss = -999
         self.position = tk.StringVar(value=f'{self.pos:.5f}')
+
+        self.saved_positions = saved_positions
+        self.limits = limits
 
         self.jog_id = 0
 
@@ -69,3 +77,12 @@ class stage:
 
     def stop_jog (self, frame):
         frame.after_cancel(self.jog_id)
+
+    def save (self):
+        SAVE = {
+            'name': self.name.get(),
+            'step': self.step_size,
+            'positions': self.saved_positions,
+            'limits': self.limits,
+        }
+        return SAVE

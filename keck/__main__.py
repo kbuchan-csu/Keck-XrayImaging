@@ -4,6 +4,8 @@ import sys
 import stage.motor_ini.core as stg
 import IStage
 
+import json
+
 # motor_id: motor
 motors = {}
 
@@ -20,6 +22,31 @@ def add_motor_new_control(window, stages):
 
     return motor_control
 
+def save (active_motors):
+    data = {}
+    for motor in active_motors:
+        data[motor.stage.port] = motor.stage.save()
+
+    with open('data.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+def load(window, stages, active_motors):
+
+    data = None
+
+    with open('data.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    print(data)
+
+    for key, value in data.items():
+        for stage in stages:
+            if stage.ser_port == key:
+                motor = IStage.stage(stage, motor_id, value['name'], value['positions'], value['limits'], value['step'])
+                motor_control = UI.motor_controls(motor)
+                motor_control.drawTo(window)
+
+                active_motors.append(motor_control)
 
 def main () -> int:
     stages = list(stg.find_stages())
@@ -31,6 +58,8 @@ def main () -> int:
 
 
     tk.Button(window, text="Add Motor", command=lambda: active_motors.append(add_motor_new_control(window, stages))).pack()
+    tk.Button(window, text="Save", command=lambda: save(active_motors)).pack()
+    tk.Button(window, text="Load", command=lambda: load(window, stages, active_motors)).pack()
     window.mainloop()
     
     return 0        # Return good exit code
