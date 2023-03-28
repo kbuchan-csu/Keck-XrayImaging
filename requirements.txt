@@ -2,3 +2,4 @@
 pystage_apt >= 0.4 
 
 # Windows motor control package
+thorlabs-apt >= 0.2
