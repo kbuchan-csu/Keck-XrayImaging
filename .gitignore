@@ -129,7 +129,10 @@ dmypy.json
 .pyre/
 
 # Test builds
-.pyz
+keck.pyz
 
 # Personal files
 tokens
+
+# Data files
+data.json
