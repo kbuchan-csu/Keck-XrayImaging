@@ -15,12 +15,11 @@ elif platform == 'linux':
 
 # Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
 class stage:
-    def __init__ (self, stage, stage_id, name=None, saved_positions=[], limits=[], step_size=0.000030):
+    def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
         self.stage = stage 
-        self.id = stage_id
 
         if name is None:
-            name = f"stage {stage_id}"
+            name = f"stage {self.serial_number}"
 
         self.name = tk.StringVar(value=name)
         self.step_size = step_size # Default 30 nm (smallest possible step size)
@@ -68,7 +67,6 @@ class stage:
     def jog (self, direction, frame):
         dt = 0.01
         lim = self.max_velocity
-        print(self.velocity, direction, self.acceleration, dt)
         self.velocity = max(min(self.velocity * direction + self.acceleration * dt * direction, lim), -lim) 
         self.step(self.velocity * dt)
 
@@ -92,8 +90,8 @@ class stage_linux (stage):
         blocking = True --> Non blocking actions
         stage is the raw stage from `list(stg.find_stages())`
     """
-    def __init__ (self, stage, stage_id, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        super().__init__(stage, stage_id, name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
+    def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
+        super().__init__(stage, name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
 
     @property
     def pos (self):
@@ -131,7 +129,7 @@ class stage_windows (stage):
         serial_number is second number in `apt.list_available_devices()` tupel
     """
     def __init__ (self, serial_number, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        super().__init__(apt.Motor(serial_number), stage_id, name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
+        super().__init__(apt.Motor(serial_number), name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
 
     @property
     def pos (self):
@@ -166,9 +164,9 @@ class stage_none (stage):
     """
         Class for testing and unsuported systems
     """
-    def __init__ (self, stage, stage_id, name=None, saved_positions=[], limits=[], step_size=0.000030):
+    def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
         self.poss = -999
-        super().__init__(stage, stage_id, name, saved_positions, limits, step_size)
+        super().__init__(stage, name, saved_positions, limits, step_size)
 
     @property
     def pos (self):
