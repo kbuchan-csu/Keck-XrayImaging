@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import *
-import stage.motor_ini.core as stg
 import IStage
 
 class dropwindow (tk.Toplevel):
@@ -152,14 +151,33 @@ class motor_controls:
         walk_down.bind('<ButtonPress-1>', lambda event: self.stage.start_jog(-1, motor_control))
         walk_down.bind('<ButtonRelease-1>',lambda event: self.stage.stop_jog(motor_control))
 
+# DEBUG functions
+class UI_DEBUG:
+    def __init__(self):
+        self.id = -999
+
+    def add_new_test_motor (self, window):
+        test = IStage.stage_none(None, self.id)
+        self.id -= 1
+
+        motor_control = motor_controls(test)
+        motor_control.drawTo(window)
+
+        return motor_control
+
 if __name__ == '__main__':
+
+    debug = UI_DEBUG()
+    test_motors = []
+
     window = tk.Tk()
     window.title("UI Test Envirment")
     window.geometry("750x270")
 
-    test = IStage.stage("NOSTAGE", -999)
+    tk.Button(window, text="Add Motor", command=lambda: test_motors.append(debug.add_new_test_motor(window))).pack()
+    tk.Button(window, text="Save").pack()
+    tk.Button(window, text="Load").pack()
 
-    motor_control = motor_controls(test)
-    motor_control.drawTo(window)
+    
 
     window.mainloop()
