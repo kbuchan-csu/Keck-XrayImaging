@@ -13,15 +13,18 @@ elif platform == 'linux':
     import stage.motor_ini.core as stg  # linux thorlabs wrapper
 
 motor_id = 0
+
+def create_new_motor (stage, name=None, positions=[], limits=[], step=0.000030):
+    if platform == 'windows':
+        return IStage.stage_windows(stage[1], name, positions, limits, step)
+    elif platform == 'linux':
+        return IStage.stage_linux(stage, name, positions, limits, step)
+
 def add_motor_new_control(window, stages):
     global motor_id
 
     # TODO better stage selection
-    if platform == 'windows':
-        motor = IStage.stage_windows(stages[motor_id][1], motor_id)
-    elif platform == 'linux':
-        motor = IStage.stage_linux(stages[motor_id], motor_id)
-
+    motor = create_new_motor(stages[motor_id])
     
     motor_control = UI.motor_controls(motor)
     motor_control.drawTo(window)
@@ -33,7 +36,7 @@ def add_motor_new_control(window, stages):
 def save (active_motors):
     data = {}
     for motor in active_motors:
-        data[motor.stage.port] = motor.stage.save()
+        data[motor.stage.serial_number] = motor.stage.save()
 
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
@@ -47,10 +50,11 @@ def load(window, stages, active_motors):
     
     print(data)
 
-    for key, value in data.items():
+    for SN, value in data.items():
         for stage in stages:
-            if stage.ser_port == key:
-                motor = IStage.stage(stage, motor_id, value['name'], value['positions'], value['limits'], value['step'])
+            test = create_new_motor(stage)
+            if test.serial_number == int(SN):
+                motor = create_new_motor(stage, value['name'], value['positions'], value['limits'], value['step'])
                 motor_control = UI.motor_controls(motor)
                 motor_control.drawTo(window)
 
