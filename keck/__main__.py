@@ -1,20 +1,28 @@
 import tkinter as tk # import the UI package to main 
 import UI # import custom UI elements to main
 import sys
-import stage.motor_ini.core as stg
 import IStage
-
 import json
 
-# motor_id: motor
-motors = {}
+# PLATFORM SPECIFIC IMPORTS
+platform = sys.platform
+if platform == 'windows':
+    import thorlabs_apt as apt          # windows thorlabs wrapper
+    
+elif platform == 'linux':
+    import stage.motor_ini.core as stg  # linux thorlabs wrapper
 
 motor_id = 0
 def add_motor_new_control(window, stages):
     global motor_id
 
     # TODO better stage selection
-    motor = IStage.stage(stages[motor_id], motor_id)
+    if platform == 'windows':
+        motor = IStage.stage_windows(stages[motor_id][1], motor_id)
+    elif platform == 'linux':
+        motor = IStage.stage_linux(stages[motor_id], motor_id)
+
+    
     motor_control = UI.motor_controls(motor)
     motor_control.drawTo(window)
 
@@ -49,7 +57,13 @@ def load(window, stages, active_motors):
                 active_motors.append(motor_control)
 
 def main () -> int:
-    stages = list(stg.find_stages())
+    stages = []
+
+    if platform == 'windows':
+        stages = apt.list_available_devices()
+    elif platform == 'linux':
+        stages = list(stg.find_stages())
+
     active_motors = list()
 
     window = tk.Tk()
