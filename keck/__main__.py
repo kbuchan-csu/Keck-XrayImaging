@@ -6,7 +6,7 @@ import json
 
 # PLATFORM SPECIFIC IMPORTS
 platform = sys.platform
-if platform == 'windows':
+if platform == 'win32':
     import thorlabs_apt as apt          # windows thorlabs wrapper
     
 elif platform == 'linux':
@@ -14,8 +14,8 @@ elif platform == 'linux':
 
 motor_id = 0
 
-def create_new_motor (stage, name=None, positions=[], limits=[], step=0.000030):
-    if platform == 'windows':
+def create_new_motor (stage, name=None, positions=Default, limits=[], step=0.000030):
+    if platform == 'win32':
         return IStage.stage_windows(stage[1], name, positions, limits, step)
     elif platform == 'linux':
         return IStage.stage_linux(stage, name, positions, limits, step)
@@ -63,7 +63,7 @@ def load(window, stages, active_motors):
 def main () -> int:
     stages = []
 
-    if platform == 'windows':
+    if platform == 'win32':
         stages = apt.list_available_devices()
     elif platform == 'linux':
         stages = list(stg.find_stages())

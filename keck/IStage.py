@@ -3,7 +3,7 @@ import tkinter as tk
 
 # PLATFORM SPECIFIC IMPORTS
 platform = sys.platform
-if platform == 'windows':
+if platform == 'win32':
     import thorlabs_apt as apt          # windows thorlabs wrapper
 
 elif platform == 'linux':
