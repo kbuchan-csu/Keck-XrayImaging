@@ -1,5 +1,5 @@
-# Linux motor control package
+# Linux motor control packages
 pystage_apt >= 0.4 
 
-# Windows motor control package
+# Windows motor control packages
 thorlabs-apt >= 0.2
