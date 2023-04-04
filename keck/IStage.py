@@ -9,9 +9,12 @@ if platform == 'win32':
 elif platform == 'linux':
     import stage.motor_ini.core as stg  # linux thorlabs wrapper
 
-
-
 #import optosigma as OPTO
+
+# Limit types
+LOWER = 0
+UPPER = 1
+STAGE = 2
 
 # Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
 class stage:
@@ -37,7 +40,8 @@ class stage:
 
     @pos.setter
     def pos (self, position):
-        pass
+        if not self.within_limits(position):
+            return
 
     @property
     def serial_number (self):
@@ -52,13 +56,16 @@ class stage:
         pass
 
     def home (self):
-        pass
+        if not self.within_limits(0):
+            return
 
     def goto (self, position):
-        pass
+        if not self.within_limits(position):
+            return
 
     def step (self, dist):
-        pass
+        if not self.within_limits(self.pos + dist):
+            return
 
     def start_jog (self, direction, frame):
         self.velocity = self.step_size * direction
@@ -67,13 +74,31 @@ class stage:
     def jog (self, direction, frame):
         dt = 0.01
         lim = self.max_velocity
-        self.velocity = max(min(self.velocity * direction + self.acceleration * dt * direction, lim), -lim) 
+        self.velocity = max(min(self.velocity + self.acceleration * dt * direction, lim), -lim) 
         self.step(self.velocity * dt)
 
         self.jog_id = frame.after(1, self.jog, direction, frame)
 
     def stop_jog (self, frame):
         frame.after_cancel(self.jog_id)
+
+    def set_limit (self, limit_type, dist, stage=None):
+        if limit_type == LOWER or limit_type == UPPER:
+            self.limits[limit_type] = dist
+        elif limit_type == STAGE: # Don't let two stages get closer than dist to each other
+            if stage is None or stage is self:
+                raise Exception("A seperate stage is requiered to set a stage limit")
+            else:
+                self.limits[stage] = dist
+
+    def remove_limit (self, limit_type, stage=None):
+        if limit_type == LOWER or limit_type == UPPER:
+            self.limits.pop(limit_type)
+        elif limit_type == STAGE: # Don't let two stages get closer than dist to each other
+            if stage is None or stage is self:
+                raise Exception("A seperate stage is requiered to gemove a stage limit")
+            else:
+                self.limits.pop(stage)
 
     def save (self):
         SAVE = {
@@ -83,6 +108,16 @@ class stage:
             'limits': self.limits,
         }
         return SAVE
+
+    def within_limits (self, pos) -> bool:
+        for limit_type, dist in self.limits.items():
+            if limit_type == LOWER:
+                return pos >= dist
+            elif limit_type == UPPER:
+                return pos <= dist
+            else:
+                # My mosition - motor limit psition >= distance limit
+                return self.pos - limit_type.pos >= dist
 
 class stage_linux (stage):
     """
@@ -99,6 +134,7 @@ class stage_linux (stage):
 
     @pos.setter
     def pos (self, position):
+        super().pos = position
         self.stage.set_pos(position, blocking=True)
 
     @property
@@ -117,9 +153,11 @@ class stage_linux (stage):
         self.stage.move_home(blocking=True)
 
     def goto (self, position):
+        super().goto(position)
         self.stage.set_pos(position, blocking=True)
 
     def step (self, dist):
+        super().step(dist)
         self.stage.move_by(dist, blocking=True)
 
 class stage_windows (stage):
