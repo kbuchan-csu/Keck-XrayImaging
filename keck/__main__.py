@@ -14,7 +14,7 @@ elif platform == 'linux':
 
 motor_id = 0
 
-def create_new_motor (stage, name=None, positions=Default, limits=[], step=0.000030):
+def create_new_motor (stage, name=None, positions=[], limits={}, step=0.000030):
     if platform == 'win32':
         return IStage.stage_windows(stage[1], name, positions, limits, step)
     elif platform == 'linux':
@@ -74,10 +74,15 @@ def main () -> int:
     window.title("Keck - XRay Imaging Sample Control")
     window.geometry("750x270")
 
+    menubar = tk.Menu(window)
+    window.config(menu=menubar)
+
+    fileMenu = tk.Menu(menubar)
+    fileMenu.add_command(label="Save", command=lambda: save(active_motors))
+    fileMenu.add_command(label="Load", command=lambda: load(window, stages, active_motors))
+    menubar.add_cascade(label="File", menu=fileMenu)
 
     tk.Button(window, text="Add Motor", command=lambda: active_motors.append(add_motor_new_control(window, stages))).pack()
-    tk.Button(window, text="Save", command=lambda: save(active_motors)).pack()
-    tk.Button(window, text="Load", command=lambda: load(window, stages, active_motors)).pack()
     window.mainloop()
     
     return 0        # Return good exit code
