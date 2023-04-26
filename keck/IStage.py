@@ -1,7 +1,7 @@
 import sys
 import tkinter as tk
 
-# PLATFORM SPECIFIC IMPORTS
+# PLATFORM SPECIFIC IMPORTS + GUARDS
 platform = sys.platform
 if platform == 'win32':
     import thorlabs_apt as apt          # windows thorlabs wrapper
@@ -18,28 +18,28 @@ STAGE = 2
 
 # Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
 class stage:
-    def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
+    def __init__ (self, stage, name: str = None, saved_positions: dict = {}, limits: dict = {}, step_size: float = 0.000030):
         self.stage = stage 
 
         if name is None:
             name = f"stage {self.serial_number}"
 
         self.name = tk.StringVar(value=name)
-        self.step_size = step_size # Default 30 nm (smallest possible step size)
+        self.step_size = step_size # Default 30 nm (smallest possible step size for thor labs motor)
 
         self.position = tk.StringVar(value=f'{self.pos:.5f}')
 
         self.saved_positions = saved_positions
         self.limits = limits
 
-        self.jog_id = 0
+        self._jog_id = 0
 
     @property
-    def pos (self):
+    def pos (self) -> float:
         pass
 
     @pos.setter
-    def pos (self, position):
+    def pos (self, position: float) -> None:
         if not self.within_limits(position):
             return
 
@@ -48,41 +48,40 @@ class stage:
         pass
 
     @property
-    def max_velocity (self):
+    def max_velocity (self) -> float:
         pass
 
     @property
-    def acceleration (self):
+    def acceleration (self) -> float:
         pass
 
-    def home (self):
-        if not self.within_limits(0):
-            return
+    def home (self) -> None:
+        pass
 
-    def goto (self, position):
+    def goto (self, position: float) -> None:
         if not self.within_limits(position):
             return
 
-    def step (self, dist):
+    def step (self, dist: float) -> None:
         if not self.within_limits(self.pos + dist):
             return
 
-    def start_jog (self, direction, frame):
+    def start_jog (self, direction: int, frame):
         self.velocity = self.step_size * direction
-        self.jog(direction, frame)
+        self._jog(direction, frame)
 
-    def jog (self, direction, frame):
+    def _jog (self, direction: int, frame):
         dt = 0.01
         lim = self.max_velocity
-        self.velocity = max(min(self.velocity + self.acceleration * dt * direction, lim), -lim) 
+        self.velocity = max(min(self.velocity + self.acceleration * dt * direction, lim), -lim)
         self.step(self.velocity * dt)
 
-        self.jog_id = frame.after(1, self.jog, direction, frame)
+        self._jog_id = frame.after(1, self._jog, direction, frame)
 
     def stop_jog (self, frame):
-        frame.after_cancel(self.jog_id)
+        frame.after_cancel(self._jog_id)
 
-    def set_limit (self, limit_type, dist, stage=None):
+    def set_limit (self, limit_type, dist: float, stage=None):
         if limit_type == LOWER or limit_type == UPPER:
             self.limits[limit_type] = dist
         elif limit_type == STAGE: # Don't let two stages get closer than dist to each other
@@ -100,6 +99,8 @@ class stage:
             else:
                 self.limits.pop(stage)
 
+    #def set_position (self, )
+
     def save (self):
         SAVE = {
             'name': self.name.get(),
@@ -109,8 +110,9 @@ class stage:
         }
         return SAVE
 
-    def within_limits (self, pos) -> bool:
+    def within_limits (self, pos: float) -> bool:
         for limit_type, dist in self.limits.items():
+            print(limit_type, dist, pos)
             if limit_type == LOWER:
                 return pos >= dist
             elif limit_type == UPPER:
@@ -118,6 +120,13 @@ class stage:
             else:
                 # My mosition - motor limit psition >= distance limit
                 return self.pos - limit_type.pos >= dist
+        return True
+
+    def save_position (pos_name: str) -> None:
+        self.saved_positions[pos_name] = self.pos
+
+    def goto_saved_position (pos_name: str) -> None:
+        self.goto(self.saved_positions[pos_name])
 
 class stage_linux (stage):
     """
@@ -134,7 +143,8 @@ class stage_linux (stage):
 
     @pos.setter
     def pos (self, position):
-        super().pos = position
+        #if not self.within_limits(position):
+        #    return
         self.stage.set_pos(position, blocking=True)
 
     @property
@@ -153,7 +163,8 @@ class stage_linux (stage):
         self.stage.move_home(blocking=True)
 
     def goto (self, position):
-        super().goto(position)
+        #if not self.within_limits(position):
+        #    return
         self.stage.set_pos(position, blocking=True)
 
     def step (self, dist):
