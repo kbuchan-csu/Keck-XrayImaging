@@ -1,4 +1,5 @@
 import tkinter as tk # import the UI package to main 
+from tkinter.filedialog import asksaveasfile, askopenfile
 import UI # import custom UI elements to main
 import sys
 import IStage
@@ -14,8 +15,17 @@ elif platform == 'linux':
 
 motor_id = 0
 
-def create_new_motor (stage, name=None, positions=[], limits={}, step=0.000030):
-    if platform == 'win32':
+"""
+    Thor labs 3 axis stage limits
+        X axis upper limit: 22 mm
+        Y axis upper limit: 22 mm
+        Z axis upper limit: 24 mm
+"""
+
+def create_new_motor (stage, name=None, positions={}, limits={IStage.UPPER: 21}, step=0.000030):
+    if stage is None:
+        return IStage.stage_none(stage, name, positions, limits, step)
+    elif platform == 'win32':
         return IStage.stage_windows(stage[1], name, positions, limits, step)
     elif platform == 'linux':
         return IStage.stage_linux(stage, name, positions, limits, step)
@@ -24,7 +34,10 @@ def add_motor_new_control(window, stages):
     global motor_id
 
     # TODO better stage selection
-    motor = create_new_motor(stages[motor_id])
+    if motor_id < len(stages):
+        motor = create_new_motor(stages[motor_id])
+    else:
+        motor = create_new_motor(None)
     
     motor_control = UI.motor_controls(motor)
     motor_control.drawTo(window)
@@ -38,15 +51,20 @@ def save (active_motors):
     for motor in active_motors:
         data[motor.stage.serial_number] = motor.stage.save()
 
+    f = asksaveasfile(mode= 'w', initialfile='data.json', defaultextension='.json', filetypes=[("All Files","*.*"), ('JSON Files', '*.json')])
+    json.dump(data, f, ensure_ascii=False, indent=4)
+    f.close()
+    """
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+        """
 
 def load(window, stages, active_motors):
 
     data = None
-
-    with open('data.json', 'r', encoding='utf-8') as f:
-        data = json.load(f)
+    f = askopenfile(mode='r', initialfile='data.json', defaultextension='.json', filetypes=[("All Files","*.*"), ('JSON Files', '*.json')])
+    data = json.load(f)
+    f.close()
     
     print(data)
 
