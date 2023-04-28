@@ -1,6 +1,56 @@
 import tkinter as tk
-from tkinter import *
+#from tkinter import *
 import IStage
+
+class popup (tk.Toplevel):
+    def __init__(self, parent):
+        tk.Toplevel.__init__(self, parent)
+        geometry = "450x150"
+
+        self.geometry(geometry)
+
+        self.focus_force()
+        self.lift()
+
+class dialog (object):
+    def __init__(self, parent):
+        self.popup = popup(parent)
+
+        self.popup.bind('<Key>', lambda event: self._close_onEvent(event))
+        self.popup.protocol('WM_DELETE_WINDOW', lambda: self._close_noSave())
+
+        frame = tk.Frame(self.popup)
+        frame.pack()
+
+        self.textvariable = tk.StringVar()
+
+        self.edit_box = tk.Entry(frame, textvariable=self.textvariable)
+        self.edit_box.grid(row=0, rowspan=1, column=0, columnspan=2)
+
+        cancel = tk.Button(frame, text="Cancel", command=lambda: self._close_noSave())
+        cancel.grid(row=1, rowspan=1, column=0, columnspan=1)
+        
+        confirm = tk.Button(frame, text="Confirm", command=lambda: self._close_save())
+        confirm.grid(row=1, rowspan=1, column=1, columnspan=1)
+
+    def show(self):
+        self.popup.wait_window()
+        return self.textvariable.get()
+
+    def _close_noSave(self):
+        self.popup.destroy()
+
+    def _close_save(self):
+        self.popup.destroy()
+
+    def _close_onEvent(self, event):
+        if event.keycode == 27:
+            self._close_noSave()
+        elif event.keycode == 36:
+            self._close_save()
+        elif event.keycode == 104:
+            self._close_save()
+        
 
 class dropwindow (tk.Toplevel):
     def __init__(self, parent):
@@ -61,7 +111,7 @@ class position (tk.Canvas):
 
         set_window.bind('<Key>', lambda event: self.check_close(event, set_window, pos))
 
-        pos = StringVar(value=self.stage.position.get())
+        pos = tk.StringVar(value=self.stage.position.get())
 
         edit_box = tk.Entry(set_window, textvariable=pos)
         edit_box.grid(row=0, rowspan=1, column=0, columnspan=2)
@@ -100,6 +150,24 @@ class motor_controls:
         text_area.config(text=f'{self.stage.pos:.5f}') # 5 decimal places after mm is 10 nm
         text_area.after(1, self.motor_position_update, text_area)
 
+    def _save_position(self, drop_down, string_var):
+        name = dialog(drop_down).show()
+        self.stage.save_position(name)
+        string_var.set(name)
+        drop_down['menu'].add_command(label=name, command=lambda: self._load_postion(string_var, name))
+
+    def _home_motor (self, string_var):
+        self.stage.home()
+        string_var.set("Home")
+
+    def _set_motor_home (self, string_var):
+        self.stage.set_home(self.stage.pos)
+        string_var.set("Home")
+
+    def _load_postion(self, string_var, name):
+        string_var.set(name)
+        self.stage.goto_saved_position(name)
+
     def drawTo (self, parent):
         """
         r\c |  0  | 1 | 2 |  3  | 4 |
@@ -118,15 +186,30 @@ class motor_controls:
         motor_control.pack()
 
         # Drop down window for selecting and saving positions
-        saved_positions = ...
+        current_selected_position = tk.StringVar()
+        current_selected_position.set('Saved Positions')
+        
+        saved_positions = tk.OptionMenu(motor_control, current_selected_position, [])
         saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
 
+        saved_positions['menu'].delete(0, 'end')
+        saved_positions['menu'].add_command(label="+", command=lambda: self._save_position(saved_positions, current_selected_position))
+        saved_positions['menu'].add_command(label="Home", command=lambda: self._home_motor(current_selected_position))
+        saved_positions['menu'].add_command(label="Set Home", command=lambda: self._set_motor_home(current_selected_position))
+
+        for saved in self.stage.saved_positions.keys():
+            saved_positions['menu'].add_command(label=saved, command=lambda: self._load_postion(current_selected_position, saved))
+
+        """
+        saved_positions = tk.OptionMenu(motor_control, current_selected_position, *options, command=lambda click: self._savedPositionsMenu(click, saved_positions, current_selected_position))
+        saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
+        """
         
-        
+        """
         # Button the closes the motor control UI
         close_button = ...
         close_button.grid(row=0, rowspan=1, column= 4, columnspan=1)
-
+        """
         
         
         # Label for the stage, can be editied when clicked 
@@ -176,11 +259,11 @@ class motor_controls:
         walk_up.bind('<ButtonRelease-1>', lambda event: self.stage.stop_jog(motor_control))
 
         
-        
+        """
         # Dropdown window for setting the limits of a motor
         limit_set = ... 
         limit_set.grid(row=3, rowspan=1, column=4, columnspan=1)
-
+        """
 
 
     def drawTo_old (self, parent):
