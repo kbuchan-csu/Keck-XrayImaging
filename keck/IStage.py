@@ -58,6 +58,9 @@ class stage:
     def home (self) -> None:
         pass
 
+    def set_home (self, position: float) -> None:
+        pass
+
     def goto (self, position: float) -> None:
         if not self.within_limits(position):
             return
@@ -122,10 +125,10 @@ class stage:
                 return self.pos - limit_type.pos >= dist
         return True
 
-    def save_position (pos_name: str) -> None:
+    def save_position (self, pos_name: str) -> None:
         self.saved_positions[pos_name] = self.pos
 
-    def goto_saved_position (pos_name: str) -> None:
+    def goto_saved_position (self, pos_name: str) -> None:
         self.goto(self.saved_positions[pos_name])
 
 class stage_linux (stage):
@@ -161,6 +164,10 @@ class stage_linux (stage):
 
     def home (self):
         self.stage.move_home(blocking=True)
+
+    def set_home (self, position):
+        home_params = self.stage.get_move_home_params
+        self.stage.set_home_params(home_params[0], home_params[1], home_params[2], home_offset_distance = position)
 
     def goto (self, position):
         #if not self.within_limits(position):
@@ -202,6 +209,11 @@ class stage_windows (stage):
 
     def home (self):
         self.stage.move_home(False)
+
+    def set_home (self, position):
+        home_params = self.stage.get_move_home_parameters()
+        self.stage.set_move_home_parameters(home_params[0], home_params[1], home_params[2], position)
+
     
     def goto (self, position):
         self.stage.move_to(position, blocking=False)
