@@ -102,6 +102,89 @@ class motor_controls:
 
     def drawTo (self, parent):
         """
+        r\c |  0  | 1 | 2 |  3  | 4 |
+        --- =========================
+         0  | Saved Positions |  X  |
+        --- +-----------------------+
+         1  |      Stage Label      |
+        --- +-----------------------+
+         2  |   00.00000      | mm  |
+        --- +-----------------------+
+         3  | << | < | > | >> | Lim |
+        --- =========================
+        """
+
+        motor_control = tk.Frame(parent)
+        motor_control.pack()
+
+        # Drop down window for selecting and saving positions
+        saved_positions = ...
+        saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
+
+        
+        
+        # Button the closes the motor control UI
+        close_button = ...
+        close_button.grid(row=0, rowspan=1, column= 4, columnspan=1)
+
+        
+        
+        # Label for the stage, can be editied when clicked 
+        stage_label = editable_label(motor_control, self.stage.name)
+        stage_label.grid(row=1, rowspan=1, column=0, columnspan=5)
+
+        
+        
+        # Position of the stage, can be told to go to a psotion when clicked
+        stage_position = position(motor_control, self.stage)
+        stage_position.grid(row=2, rowspan=1, column=0, columnspan=4)
+
+        
+        
+        # Units of position
+        units = tk.Label(motor_control, text="mm")
+        units.grid(row=2, rowspan=1, column=4, columnspan=1)
+
+        
+        
+        # Button for walking the stage in negative direction
+        walk_down = tk.Button(motor_control, text="<<")
+        walk_down.grid(row=3, rowspan=1, column=0, columnspan=1)
+
+        walk_down.bind('<ButtonPress-1>', lambda event: self.stage.start_jog(-1, motor_control))
+        walk_down.bind('<ButtonRelease-1>',lambda event: self.stage.stop_jog(motor_control))
+
+        
+        
+        # Button for stepping the stage in negative direction
+        step_down = tk.Button(motor_control, text="<", command=lambda: self.stage.step(-self.stage.step_size))
+        step_down.grid(row=3, rowspan=1, column=1, columnspan=1)
+
+        
+        
+        # Button for stepping the stage in positive direction
+        step_up = tk.Button(motor_control, text=">", command=lambda: self.stage.step(self.stage.step_size))
+        step_up.grid(row=3, rowspan=1, column=2, columnspan=1)
+
+        
+        
+        # Button for walking the stage in positive direction
+        walk_up = tk.Button(motor_control, text=">>")
+        walk_up.grid(row=3, rowspan=1, column=3, columnspan=1)
+
+        walk_up.bind('<ButtonPress-1>', lambda event: self.stage.start_jog(1, motor_control))
+        walk_up.bind('<ButtonRelease-1>', lambda event: self.stage.stop_jog(motor_control))
+
+        
+        
+        # Dropdown window for setting the limits of a motor
+        limit_set = ... 
+        limit_set.grid(row=3, rowspan=1, column=4, columnspan=1)
+
+
+
+    def drawTo_old (self, parent):
+        """
         -----------------------
         |    Stage Label  | X |
         -----------------------
@@ -174,10 +257,14 @@ if __name__ == '__main__':
     window.title("UI Test Envirment")
     window.geometry("750x270")
 
-    tk.Button(window, text="Add Motor", command=lambda: test_motors.append(debug.add_new_test_motor(window))).pack()
-    tk.Button(window, text="Save").pack()
-    tk.Button(window, text="Load").pack()
+    menubar = tk.Menu(window)
+    window.config(menu=menubar)
 
-    
+    fileMenu = tk.Menu(menubar)
+    fileMenu.add_command(label="Save")
+    fileMenu.add_command(label="Load")
+    menubar.add_cascade(label="File", menu=fileMenu)
+
+    tk.Button(window, text="Add Motor", command=lambda: test_motors.append(debug.add_new_test_motor(window))).pack()
 
     window.mainloop()
