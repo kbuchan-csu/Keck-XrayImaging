@@ -74,10 +74,11 @@ class stage:
         self._jog(direction, frame)
 
     def _jog (self, direction: int, frame):
-        dt = 0.01
+        dt = 0.001
         lim = self.max_velocity
         self.velocity = max(min(self.velocity + self.acceleration * dt * direction, lim), -lim)
-        self.step(self.velocity * dt)
+        step_dist = self.velocity * dt
+        self.step(step_dist)
 
         self._jog_id = frame.after(1, self._jog, direction, frame)
 
@@ -114,16 +115,21 @@ class stage:
         return SAVE
 
     def within_limits (self, pos: float) -> bool:
+        within = True
         for limit_type, dist in self.limits.items():
             print(limit_type, dist, pos)
+            limit_type = int(limit_type)
             if limit_type == LOWER:
-                return pos >= dist
+                within = within and (pos >= dist)
             elif limit_type == UPPER:
-                return pos <= dist
+                within = within and (pos <= dist)
             else:
-                # My mosition - motor limit psition >= distance limit
-                return self.pos - limit_type.pos >= dist
-        return True
+                # My position - motor limit psition >= distance limit
+                within = within and (self.pos - limit_type.pos >= dist)
+            if not within:
+                break
+        print(within)
+        return within
 
     def save_position (self, pos_name: str) -> None:
         self.saved_positions[pos_name] = self.pos
@@ -146,8 +152,8 @@ class stage_linux (stage):
 
     @pos.setter
     def pos (self, position):
-        #if not self.within_limits(position):
-        #    return
+        if not self.within_limits(position):
+            return
         self.stage.set_pos(position, blocking=True)
 
     @property
@@ -170,12 +176,13 @@ class stage_linux (stage):
         self.stage.set_home_params(home_params[0], home_params[1], home_params[2], home_offset_distance = position)
 
     def goto (self, position):
-        #if not self.within_limits(position):
-        #    return
+        if not self.within_limits(position):
+            return
         self.stage.set_pos(position, blocking=True)
 
     def step (self, dist):
-        super().step(dist)
+        if not self.within_limits(self.pos + dist):
+            return
         self.stage.move_by(dist, blocking=True)
 
 class stage_windows (stage):
@@ -193,6 +200,8 @@ class stage_windows (stage):
 
     @pos.setter
     def pos (self, position):
+        if not self.within_limits(position):
+            return
         self.stage.position = position
 
     @property
@@ -216,9 +225,13 @@ class stage_windows (stage):
 
     
     def goto (self, position):
+        if not self.within_limits(position):
+            return
         self.stage.move_to(position, blocking=False)
 
     def step (self, dist):
+        if not self.within_limits(self.pos + dist):
+            return
         self.stage.move_by(dist, blocking=False)
 
 class stage_none (stage):
