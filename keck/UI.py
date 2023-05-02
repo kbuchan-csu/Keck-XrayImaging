@@ -13,8 +13,11 @@ class popup (tk.Toplevel):
         self.lift()
 
 class dialog (object):
-    def __init__(self, parent):
+    def __init__(self, parent, title, default_text=""):
         self.popup = popup(parent)
+        self.popup.title(title)
+
+        self.default_text = default_text
 
         self.popup.bind('<Key>', lambda event: self._close_onEvent(event))
         self.popup.protocol('WM_DELETE_WINDOW', lambda: self._close_noSave())
@@ -23,6 +26,7 @@ class dialog (object):
         frame.pack()
 
         self.textvariable = tk.StringVar()
+        self.textvariable.set(default_text)
 
         self.edit_box = tk.Entry(frame, textvariable=self.textvariable)
         self.edit_box.grid(row=0, rowspan=1, column=0, columnspan=2)
@@ -38,13 +42,14 @@ class dialog (object):
         return self.textvariable.get()
 
     def _close_noSave(self):
+        self.textvariable.set(self.default_text)
         self.popup.destroy()
 
     def _close_save(self):
         self.popup.destroy()
 
     def _close_onEvent(self, event):
-        if event.keycode == 27:
+        if event.keycode == 9:
             self._close_noSave()
         elif event.keycode == 36:
             self._close_save()
@@ -74,24 +79,9 @@ class editable_label (tk.Label):
         self.bind('<ButtonPress-1>', lambda event: self.edit(self))
 
     def edit (self, parent):
-        edit_window = dropwindow(parent)
-
-        edit_window.geometry("200x200")  # Size of the window 
-        edit_window.title("label edit")
-
-        edit_window.bind('<Key>', lambda event: self.close(event, edit_window))
-
-        edit_box = tk.Entry(edit_window, textvariable=self.textvariable)
-        edit_box.icursor(len(self.textvariable.get()))
-        edit_box.pack(fill=BOTH)
-
-        edit_box.focus_set()
-
-        edit_window.mainloop()
-
-    def close (self, event, window):
-        if event.keycode == 36:
-            window.destroy()
+        name = dialog(self, "Set Stage Name", default_text=self.textvariable.get()).show().strip()
+        if name != "":
+            self.textvariable.set(name)
 
 class position (tk.Canvas):
     def __init__ (self, parent, stage):
@@ -100,47 +90,19 @@ class position (tk.Canvas):
 
         self.text = self.create_text(110/2, 20/2 + 4, text=stage.position.get(), fill='black', font=('Helvetica 10'), anchor="center")
 
-        self.bind('<ButtonPress-1>', lambda event: self.setwindow(self))
+        self.bind('<ButtonPress-1>', lambda event: self.setwindow())
         self.after(1, self.motor_position_update)
 
-    def setwindow (self, parent):
-        set_window = dropwindow(parent)
-
-        set_window.geometry("200x200")  # Size of the window 
-        set_window.title("set stage position")
-
-        set_window.bind('<Key>', lambda event: self.check_close(event, set_window, pos))
-
-        pos = tk.StringVar(value=self.stage.position.get())
-
-        edit_box = tk.Entry(set_window, textvariable=pos)
-        edit_box.grid(row=0, rowspan=1, column=0, columnspan=2)
-
-        cancel = tk.Button(set_window, text='Cancel', command=lambda: self.close(set_window))
-        cancel.grid(row=1, rowspan=1, column=0, columnspan=1)
-
-        move = tk.Button(set_window, text='Move', command=lambda: self.gotoPosition(set_window, pos))
-        move.grid(row=1, rowspan=1, column=1, columnspan=1)
-
-        edit_box.focus_set()
-
-        set_window.mainloop()
-
-    def check_close (self, event, window, value):
-        if event.keycode == 36:
-            self.gotoPosition(window, value)
-
-    def gotoPosition (self, window, value):
-        self.stage.goto(float(value.get()))
-        self.close(window)
-
-    def close (self, window):
-        window.destroy()
+    def setwindow (self):
+        pos = float(dialog(self, "Set Position", default_text=f'{self.stage.pos:.5}').show())
+        if pos <= self.stage.pos - 0.00029 or pos >= self.stage.pos + 0.00029:
+            self.stage.goto(pos)
 
     def motor_position_update (self):
         self.stage.position.set(f'{self.stage.pos:.5f}') # 5 decimal places after mm is 10 nm
         self.itemconfig(self.text, text=self.stage.position.get())
         self.after(1, self.motor_position_update)
+    
 
 class motor_controls:
     def __init__ (self, stage: IStage.stage):
@@ -151,10 +113,12 @@ class motor_controls:
         text_area.after(1, self.motor_position_update, text_area)
 
     def _save_position(self, drop_down, string_var):
-        name = dialog(drop_down).show()
-        self.stage.save_position(name)
-        string_var.set(name)
-        drop_down['menu'].add_command(label=name, command=lambda: self._load_postion(string_var, name))
+        name = dialog(drop_down, "Name New Saved Position").show().strip()
+        if name != "":
+            if not (name in self.stage.saved_positions.keys()):
+                drop_down['menu'].add_command(label=name, command=lambda: self._load_postion(string_var, name))
+            self.stage.save_position(name)
+            string_var.set(name)
 
     def _home_motor (self, string_var):
         self.stage.home()
@@ -196,21 +160,16 @@ class motor_controls:
         saved_positions['menu'].add_command(label="+", command=lambda: self._save_position(saved_positions, current_selected_position))
         saved_positions['menu'].add_command(label="Home", command=lambda: self._home_motor(current_selected_position))
         saved_positions['menu'].add_command(label="Set Home", command=lambda: self._set_motor_home(current_selected_position))
+        saved_positions['menu'].add_separator()
 
         for saved in self.stage.saved_positions.keys():
             saved_positions['menu'].add_command(label=saved, command=lambda: self._load_postion(current_selected_position, saved))
-
-        """
-        saved_positions = tk.OptionMenu(motor_control, current_selected_position, *options, command=lambda click: self._savedPositionsMenu(click, saved_positions, current_selected_position))
-        saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
-        """
         
         """
-        # Button the closes the motor control UI
-        close_button = ...
-        close_button.grid(row=0, rowspan=1, column= 4, columnspan=1)
+        # Button to close the motor UI
+        close_motor = ...
+        close_motor.grid(row=0, rowspan=1, column=0, columnspan=5)
         """
-        
         
         # Label for the stage, can be editied when clicked 
         stage_label = editable_label(motor_control, self.stage.name)
@@ -259,63 +218,35 @@ class motor_controls:
         walk_up.bind('<ButtonRelease-1>', lambda event: self.stage.stop_jog(motor_control))
 
         
-        """
+        
         # Dropdown window for setting the limits of a motor
-        limit_set = ... 
+        limit_name = tk.StringVar()
+        limit_name.set("Limits")
+        limit_set = tk.OptionMenu(motor_control, limit_name, [])
         limit_set.grid(row=3, rowspan=1, column=4, columnspan=1)
-        """
 
-
-    def drawTo_old (self, parent):
-        """
-        -----------------------
-        |    Stage Label  | X |
-        -----------------------
-        |   00.00000  |  mm   |
-        -----------------------
-        | ^ |   | /-\ |   | V |
-        | ^ | ^ | |_| | V | V |
-        -----------------------
-        """
-        motor_control = tk.Frame(parent)
-        motor_control.pack()
-
-        stage_label = editable_label(motor_control, self.stage.name)
-        stage_label.grid(row=0, rowspan=1, column=0, columnspan=4)
-
-        stage_remove = tk.Button(motor_control, text="X")
-        stage_remove.grid(row=0, rowspan=1, column=4, columnspan=1)
-
-
-        # TODO Test with real motors
-        stage_position = position(motor_control, self.stage) #tk.Label(motor_control, text="00.00000")
-        stage_position.grid(row=1, rowspan=1, column=0, columnspan=3)
+        limit_set['menu'].delete(0, 'end')
+        limit_set['menu'].add_command(label="MIN", command=lambda: self._set_limit(limit_set, IStage.LOWER))
+        limit_set['menu'].add_command(label="MAX", command=lambda: self._set_limit(limit_set, IStage.UPPER))
         
-        #self.motor_position_update(stage_position)
+        """
+        avaliable_motors = tk.Menu(motor_control)
+        for motor in motors:
+            if motor == self:
+                continue
 
-        units = tk.Label(motor_control, text="mm")
-        units.grid(row=1, rowspan=1, column=3, columnspan=2)
+
+        limit_set['menu'].add_cascade(label="MOTOR", menu=avaliable_motors)
+        """
+
+    def _set_limit(self, parent, limit_type):
+        current_lim = self.stage.limits.get(limit_type)
+        if current_lim is None:
+            current_lim = ''
+        pos = dialog(parent, "Set Motor Limit", current_lim).show()
+        if pos != '':
+            self.stage.set_limit(limit_type, float(pos))
         
-        walk_up = tk.Button(motor_control, text="^^")
-        walk_up.grid(row=2, rowspan=1, column=0)
-
-        walk_up.bind('<ButtonPress-1>', lambda event: self.stage.start_jog(1, motor_control))
-        walk_up.bind('<ButtonRelease-1>', lambda event: self.stage.stop_jog(motor_control))
-
-        step_up = tk.Button(motor_control, text="^", command=lambda: self.stage.step(self.stage.step_size))
-        step_up.grid(row=2, rowspan=1, column=1)
-
-        home = tk.Button(motor_control, text="H", command=self.stage.home)
-        home.grid(row=2, rowspan=1, column=2)
-
-        step_down = tk.Button(motor_control, text="V", command=lambda: self.stage.step(-self.stage.step_size))
-        step_down.grid(row=2, rowspan=1, column=3)
-
-        walk_down = tk.Button(motor_control, text="VV")
-        walk_down.grid(row=2, rowspan=1, column=4)
-
-        walk_down.bind('<ButtonPress-1>', lambda event: self.stage.start_jog(-1, motor_control))
-        walk_down.bind('<ButtonRelease-1>',lambda event: self.stage.stop_jog(motor_control))
 
 # DEBUG functions
 class UI_DEBUG:
