@@ -23,7 +23,7 @@ motors = {}
         Z axis upper limit: 24 mm
 """
 
-def create_new_motor (stage, name=None, positions={}, limits={IStage.UPPER: 22}, step=0.000030):
+def create_new_motor (stage, name=None, positions={}, limits={}, step=0.000030):
     if stage is None:
         return IStage.stage_none(stage, name, positions, limits, step)
     elif platform == 'win32':
