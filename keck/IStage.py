@@ -114,6 +114,12 @@ class stage:
         }
         return SAVE
 
+    def load (self, name, step_size, positions, limits):
+        self.name.set(name)
+        self.step_size = step_size
+        self.saved_positions = positions
+        self.limits = limits
+
     def within_limits (self, pos: float) -> bool:
         within = True
         for limit_type, dist in self.limits.items():
