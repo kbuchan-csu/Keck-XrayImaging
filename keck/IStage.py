@@ -10,11 +10,12 @@ elif platform == 'linux':
     import stage.motor_ini.core as stg  # linux thorlabs wrapper
 
 #import optosigma as OPTO
+import __main__
 
 # Limit types
-LOWER = 0
-UPPER = 1
-STAGE = 2
+LOWER = '0'
+UPPER = '1'
+STAGE = '2'
 
 # Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
 class stage:
@@ -85,14 +86,36 @@ class stage:
     def stop_jog (self, frame):
         frame.after_cancel(self._jog_id)
 
-    def set_limit (self, limit_type, dist: float, stage=None):
+    def set_limit (self, limit_type, dist: float):
         if limit_type == LOWER or limit_type == UPPER:
             self.limits[limit_type] = dist
-        elif limit_type == STAGE: # Don't let two stages get closer than dist to each other
-            if stage is None or stage is self:
-                raise Exception("A seperate stage is requiered to set a stage limit")
-            else:
-                self.limits[stage] = dist
+
+    def set_limit_stage (self, stage, parallel: int):
+        big = max(self.pos, stage.pos)
+        small = min(self.pos, stage.pos)
+        dist = big + parallel * small
+        self.limits[STAGE] = self.limits.get(STAGE) or {}
+        stage.limits[STAGE] = stage.limits.get(STAGE) or {}
+
+        if self.pos > stage.pos:
+            left = self
+            right = stage
+        else:
+            left = stage
+            right = self
+
+        self.limits[STAGE][str(stage.serial_number)] = {
+            'dist': dist,
+            'parallel': parallel,
+            'left': [left.serial_number, left.pos],
+            'right': [right.serial_number, right.pos]
+        }
+        stage.limits[STAGE][str(self.serial_number)] = {
+            'dist': dist,
+            'parallel': parallel,
+            'left': [left.serial_number, left.pos],
+            'right': [right.serial_number, right.pos]
+        }
 
     def remove_limit (self, limit_type, stage=None):
         if limit_type == LOWER or limit_type == UPPER:
@@ -101,9 +124,7 @@ class stage:
             if stage is None or stage is self:
                 raise Exception("A seperate stage is requiered to gemove a stage limit")
             else:
-                self.limits.pop(stage)
-
-    #def set_position (self, )
+                self.limits.pop(stage.serial_number)
 
     def save (self):
         SAVE = {
@@ -120,21 +141,42 @@ class stage:
         self.saved_positions = positions
         self.limits = limits
 
+        print(self.limits)
+
     def within_limits (self, pos: float) -> bool:
+        """
+        Antiparallel works perfectly
+        Parallel works when left motor position > right motor position when set, or when right motor can not extedn into left motor
+        if right motor can extend into left motor does not work
+        """
         within = True
         for limit_type, dist in self.limits.items():
-            print(limit_type, dist, pos)
-            limit_type = int(limit_type)
+            # print(limit_type, dist, pos)
             if limit_type == LOWER:
                 within = within and (pos >= dist)
             elif limit_type == UPPER:
                 within = within and (pos <= dist)
-            else:
-                # My position - motor limit psition >= distance limit
-                within = within and (self.pos - limit_type.pos >= dist)
+            elif limit_type == STAGE:
+                for SN, lim in dist.items():
+                    motor = __main__.motors[int(SN)]
+                    if lim['parallel'] == -1: # Parallel case
+                        left = __main__.motors[lim['left'][0]]
+                        right = __main__.motors[lim['right'][0]]
+
+                        if left.serial_number == self.serial_number:
+                            dist = pos - right.pos
+
+                        else:
+                            dist = left.pos - pos
+
+                        if  dist > lim['dist']:
+                            within = False
+
+                    elif lim['parallel'] == 1: # Antiparallel case
+                        within = pos + motor.pos <= lim['dist']
             if not within:
                 break
-        print(within)
+        print (within)
         return within
 
     def save_position (self, pos_name: str) -> None:

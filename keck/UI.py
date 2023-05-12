@@ -1,6 +1,7 @@
 import tkinter as tk
 #from tkinter import *
 import IStage
+import __main__
 
 class popup (tk.Toplevel):
     def __init__(self, parent):
@@ -82,6 +83,8 @@ class editable_label (tk.Label):
         name = dialog(self, "Set Stage Name", default_text=self.textvariable.get()).show().strip()
         if name != "":
             self.textvariable.set(name)
+            for motor in __main__.active_motors:
+                motor.refresh_limits()
 
 class position (tk.Canvas):
     def __init__ (self, parent, stage):
@@ -228,24 +231,41 @@ class motor_controls:
         limit_set['menu'].delete(0, 'end')
         limit_set['menu'].add_command(label="MIN", command=lambda: self._set_limit(limit_set, IStage.LOWER))
         limit_set['menu'].add_command(label="MAX", command=lambda: self._set_limit(limit_set, IStage.UPPER))
-        
-        """
-        avaliable_motors = tk.Menu(motor_control)
-        for motor in motors:
-            if motor == self:
+
+        self.avaliable_motors = tk.Menu(limit_set)
+
+        self.refresh_limits()
+
+        limit_set['menu'].add_cascade(label="MOTOR", menu=self.avaliable_motors)
+
+    def refresh_limits(self):
+        self.avaliable_motors.delete(0, 'end')
+
+        for SN, motor in __main__.motors.items():
+            if SN == self.stage.serial_number:
                 continue
+            else:
+                p = self.avaliable_motors.add_command(label=motor.name.get(), command=lambda SN=SN: self._set_limit(p, IStage.STAGE, SN))
 
+    def _set_limit(self, parent, limit_type, SN=-999):
+        if SN != -999:
+            motor = __main__.motors[SN]
+            dir = dialog(parent, "Motor Direction").show()
+            para = 1
 
-        limit_set['menu'].add_cascade(label="MOTOR", menu=avaliable_motors)
-        """
+            parallel = ['same', 'p', 'parallel', '+', '1']
+            if dir in parallel:
+                para = -1
 
-    def _set_limit(self, parent, limit_type):
-        current_lim = self.stage.limits.get(limit_type)
-        if current_lim is None:
-            current_lim = ''
-        pos = dialog(parent, "Set Motor Limit", current_lim).show()
-        if pos != '':
-            self.stage.set_limit(limit_type, float(pos))
+            self.stage.set_limit_stage(motor, para)
+
+        else:
+            current_lim = self.stage.limits.get(limit_type)
+            if current_lim is None:
+                current_lim = ''
+            pos = dialog(parent, "Set Motor Limit", current_lim).show()
+            if pos != '':
+                self.stage.set_limit(limit_type, float(pos))
         
 
 # DEBUG functions
