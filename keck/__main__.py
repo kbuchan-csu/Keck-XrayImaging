@@ -15,6 +15,7 @@ elif platform == 'linux':
 
 motor_id = 0
 motors = {}
+active_motors = []
 
 """
     Thor labs 3 axis stage limits
@@ -34,19 +35,15 @@ def create_new_motor (stage, name=None, positions={}, limits={}, step=0.000030):
 def save ():
     global motors
     data = {}
-    for SN, motor in motors.values():
+    for SN, motor in motors.items():
         data[SN] = motor.save()
 
     f = asksaveasfile(mode= 'w', initialfile='data.json', defaultextension='.json', filetypes=[("All Files","*.*"), ('JSON Files', '*.json')])
     json.dump(data, f, ensure_ascii=False, indent=4)
     f.close()
-    """
-    with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-        """
 
 def load(window):
-    global motors
+    global motors, active_motors
 
     data = None
     f = askopenfile(mode='r', initialfile='data.json', defaultextension='.json', filetypes=[("All Files","*.*"), ('JSON Files', '*.json')])
@@ -56,25 +53,28 @@ def load(window):
     print(data)
 
     for SN, value in data.items():
-        for motor in motors:
-            if motor.serial_number == int(SN):
-                motor.load(value['name'], value['positions'], value['limits'], value['step'])
-                motor_control = UI.motor_controls(motor)
-                motor_control.drawTo(window)
-
-                active_motors.append(motor_control)
+        for sn, motor in motors.items():
+            if int(sn) == int(SN):
+                motor.load(value['name'], value['step'], value['positions'], value['limits'])
                 break
 
-def add_motor (window, SN, menu):
+    for motor in active_motors:
+        motor.refresh_limits()
+
+def add_motor (window, SN):
     global motors
-    print(SN)
     motor_control = UI.motor_controls(motors[SN])
     motor_control.drawTo(window)
+    return motor_control
 
+def refresh_motors(window):
+    global motors, active_motors
+    
+    for motor in active_motors:
+        motor.pack_forget()
 
-def refresh_motors(menu, window):
-    menu.delete(0, 'end')
-
+    active_motors = []
+    
     if platform == 'win32':
         stages = apt.list_available_devices()
     elif platform == 'linux':
@@ -85,23 +85,12 @@ def refresh_motors(menu, window):
         SN = motor.serial_number
         if SN not in motors:
             motors[SN] = motor
-
-        menu.add_command(label=motor.name.get(), command=lambda: add_motor(window, SN, menu))
-
-    print(motors)
+            active_motors.append(add_motor(window, SN))
+    
+    for motor in active_motors:
+        motor.refresh_limits()
 
 def main () -> int:
-    """
-    stages = []
-
-    if platform == 'win32':
-        stages = apt.list_available_devices()
-    elif platform == 'linux':
-        stages = list(stg.find_stages())
-
-    active_motors = list()
-    """
-
     window = tk.Tk()
     window.title("Keck - XRay Imaging Sample Control")
     window.geometry("750x270")
@@ -114,13 +103,7 @@ def main () -> int:
     fileMenu.add_command(label="Load", command=lambda: load(window))
     menubar.add_cascade(label="File", menu=fileMenu)
 
-    motorMenu = tk.Menu(menubar)
-    motorMenu.add_command(label="Refresh", command=lambda : refresh_motors(motorMenu, window))
-    menubar.add_cascade(label="Add Motor", menu=motorMenu)
-
-    refresh_motors(motorMenu, window)
-
-    #tk.Button(window, text="Add Motor", command=lambda: active_motors.append(add_motor_new_control(window, stages))).pack()
+    refresh_motors(window)
     window.mainloop()
     
     return 0        # Return good exit code
