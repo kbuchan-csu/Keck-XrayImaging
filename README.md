@@ -67,9 +67,38 @@ A config file is created by saving the current setup of stages, by going File --
         
 Each stage is saved as the stage's serial number. The fields are as follows:
 - The user created name of the stage
-- The minimum step size
+- The minimum step size in mm
 - The list of positions
--- Each position is it's name followed by the position that the motor should go to.
+..- Each position is it's name followed by the position that the motor should go to.
 - The list of limits
--- Each limit type has a number, where 0 is MIN, 1 is MAX, and 2 is MOTOR
---- Motor limits are saved as the serial number of linked stage followed by the distace between the two stages at time of creation, wheter of not the limit is parallel "-1" or antiparallel "1", the left stage (serial number and position at time of creation) and the right stage (serial number and position at time of creation)
+..- Each limit type has a number, where 0 is MIN, 1 is MAX, and 2 is MOTOR
+....- Motor limits are saved as the serial number of linked stage followed by the distace between the two stages at time of creation, wheter of not the limit is parallel "-1" or antiparallel "1", the left stage (serial number and position at time of creation) and the right stage (serial number and position at time of creation)
+        
+Example of an entry in the config is:
+```
+  "27264725": {
+        "name": "X-Axis Left",
+        "step": 3e-05,
+        "positions": {
+            "Reset Position": 21.0
+        },
+        "limits": {
+            "0": 0.0,
+            "1": 22.0,
+            "2": {
+                "27263725": {
+                    "dist": 10.0,
+                    "parallel": -1,
+                    "left": [
+                        27264725,
+                        12.0
+                    ],
+                    "right": [
+                        27263725,
+                        2.0
+                    ]
+                }
+            }
+        }
+    }
+```
