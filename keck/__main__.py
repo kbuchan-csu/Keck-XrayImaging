@@ -5,6 +5,7 @@ import sys
 import IStage
 import json
 
+"""
 # PLATFORM SPECIFIC IMPORTS
 platform = sys.platform
 if platform == 'win32':
@@ -12,7 +13,10 @@ if platform == 'win32':
     
 elif platform == 'linux':
     import stage.motor_ini.core as stg  # linux thorlabs wrapper
-
+"""
+    
+from thorlabs_apt_device import KDC101
+from thorlabs_apt_device.devices import aptdevice
 motor_id = 0
 motors = {}
 active_motors = []
@@ -25,12 +29,17 @@ active_motors = []
 """
 
 def create_new_motor (stage, name=None, positions={}, limits={}, step=0.000030):
+    """
     if stage is None:
         return IStage.stage_none(stage, name, positions, limits, step)
     elif platform == 'win32':
         return IStage.stage_windows(stage[1], name, positions, limits, step)
     elif platform == 'linux':
         return IStage.stage_linux(stage, name, positions, limits, step)
+    """
+    serno = ...
+
+    return IStage.stage_thorlabs(stage, serno, name, positions, limits, step)
 
 def save ():
     global motors
@@ -75,11 +84,15 @@ def refresh_motors(window):
 
     active_motors = []
     
+    # TODO determine how to find the different stages
+
+    """
     if platform == 'win32':
         stages = apt.list_available_devices()
     elif platform == 'linux':
         stages = list(stg.find_stages())
-
+    """
+        
     for stage in stages:
         motor = create_new_motor(stage)
         SN = motor.serial_number

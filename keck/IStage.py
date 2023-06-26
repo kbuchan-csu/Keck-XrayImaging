@@ -1,6 +1,7 @@
 import sys
 import tkinter as tk
 
+"""
 # PLATFORM SPECIFIC IMPORTS + GUARDS
 platform = sys.platform
 if platform == 'win32':
@@ -8,6 +9,9 @@ if platform == 'win32':
 
 elif platform == 'linux':
     import stage.motor_ini.core as stg  # linux thorlabs wrapper
+"""
+
+from thorlabs_apt_device import KDC101
 
 #import optosigma as OPTO
 import __main__
@@ -17,7 +21,7 @@ LOWER = '0'
 UPPER = '1'
 STAGE = '2'
 
-# Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
+# Stage -> stage, name, step, saved_positions[], limits[]
 class stage:
     def __init__ (self, stage, name: str = None, saved_positions: dict = {}, limits: dict = {}, step_size: float = 0.000030):
         self.stage = stage 
@@ -281,6 +285,55 @@ class stage_windows (stage):
         if not self.within_limits(self.pos + dist):
             return
         self.stage.move_by(dist, blocking=False)
+
+
+# All distances are in encoder steps
+# TODO convert between encoder steps and millimeters 
+class stage_thorlabs (stage):
+    def __init__ (self, stage, serno, name=None, saved_positions=[], limits=[], step_size=0.000030):
+        super().__init__(stage, name, saved_positions, limits, step_size)
+        self.serial_number = serno
+    
+    @property
+    def pos (self):
+        return self.stage.status['position']
+    
+    @pos.setter
+    def pos (self, position):
+        if not self.within_limits(position):
+            return
+        self.stage.move_absolute(position=position) 
+
+    @property
+    def serial_number(self):
+        return self.serial_number
+    
+    @property
+    def max_velocity (self):
+        return self.stage.velparams_['max_velocity']
+
+    @property
+    def acceleration (self):
+        return self.stage.velparams_['acceleration']
+    
+    def home (self):
+        self.stage.home()
+
+    def set_home (self, position):
+        params = self.stage.homeparams_
+        self.stage.set_home_params(params['home_velocity'], position)
+
+    def goto (self, position):
+        if not self.within_limits(position):
+            return
+        self.stage.move_absolute(position=position) 
+
+    def step (self, dist):
+        if not self.within_limits(self.pos + dist):
+            return
+        self.stage.move_relative(dist)
+
+    # TODO implement jog from thorlabs_apt_device
 
 class stage_none (stage):
     """

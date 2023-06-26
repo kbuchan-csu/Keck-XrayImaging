@@ -1,5 +1,7 @@
 # Linux motor control packages
-pystage_apt >= 0.4 
+# pystage_apt >= 0.4 
 
 # Windows motor control packages
-thorlabs-apt >= 0.2
+# thorlabs-apt >= 0.2
+
+thorlabs_apt_device
