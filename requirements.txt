@@ -5,3 +5,5 @@
 # thorlabs-apt >= 0.2
 
 thorlabs_apt_device
+
+git+https://github.com/elerac/optosigma
