@@ -4,6 +4,7 @@ import UI # import custom UI elements to main
 import sys
 import IStage
 import json
+import re
 
 """
 # PLATFORM SPECIFIC IMPORTS
@@ -17,6 +18,13 @@ elif platform == 'linux':
     
 from thorlabs_apt_device import KDC101
 from thorlabs_apt_device.devices import aptdevice
+
+import serial.tools as serial
+from optosigma import GSC01
+
+THORLABS = 'thorlabs'
+OPTOSIGMA = 'optosigma'
+
 motor_id = 0
 motors = {}
 active_motors = []
@@ -28,7 +36,7 @@ active_motors = []
         Z axis upper limit: 24 mm
 """
 
-def create_new_motor (stage, name=None, positions={}, limits={}, step=0.000030):
+def create_new_motor (manufacturere, identifier, name=None, positions={}, limits={}, step=0.000030):
     """
     if stage is None:
         return IStage.stage_none(stage, name, positions, limits, step)
@@ -37,9 +45,10 @@ def create_new_motor (stage, name=None, positions={}, limits={}, step=0.000030):
     elif platform == 'linux':
         return IStage.stage_linux(stage, name, positions, limits, step)
     """
-    serno = ...
-
-    return IStage.stage_thorlabs(stage, serno, name, positions, limits, step)
+    if manufacturere == THORLABS:
+        return IStage.stage_thorlabs(KDC101(serial_number=identifier), int(identifier), name, positions, limits, step)
+    elif manufacturere == OPTOSIGMA:
+        return IStage.stage_optosigma(GSC01(identifier.device), int(device.serial_number), name, positions, limits, step)
 
 def save ():
     global motors
@@ -83,8 +92,6 @@ def refresh_motors(window):
         motor.pack_forget()
 
     active_motors = []
-    
-    # TODO determine how to find the different stages
 
     """
     if platform == 'win32':
@@ -92,13 +99,38 @@ def refresh_motors(window):
     elif platform == 'linux':
         stages = list(stg.find_stages())
     """
-        
+
+    # Find thorlabs devices
+    apt_devices = aptdevice.list_devices()
+    serial_numbers = re.findall("(?<=serial_number=)[0-9]*(?=,)", apt_devices)
+    for serial_number in serial_numbers:
+        motor = create_new_motor(THORLABS, serial_number)
+        if serial_number not in motors:
+            motors[serial_number] = motor
+            active_motors.append(add_motor(window, serial_number))
+    
+    
+    # TODO Find optosigma devices
+    """
+    optosigma_devices = serial.grep("optosigma")
+    for device in optosigma_devices:
+        motor = create_new_motor(OPTOSIGMA, device)
+        SN = motor.serial_number
+        if SN not in motors:
+            motors[SN] = motor
+            active_motors.append(add_motor(window, SN))
+    """
+
+
+    """
+    stages = []
     for stage in stages:
         motor = create_new_motor(stage)
         SN = motor.serial_number
         if SN not in motors:
             motors[SN] = motor
             active_motors.append(add_motor(window, SN))
+    """
     
     for motor in active_motors:
         motor.refresh_limits()

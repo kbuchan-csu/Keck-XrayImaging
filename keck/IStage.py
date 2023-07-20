@@ -13,7 +13,7 @@ elif platform == 'linux':
 
 from thorlabs_apt_device import KDC101
 
-#import optosigma as OPTO
+import optosigma as OPTO
 import __main__
 
 # Limit types
@@ -180,7 +180,6 @@ class stage:
                         within = pos + motor.pos <= lim['dist']
             if not within:
                 break
-        print (within)
         return within
 
     def save_position (self, pos_name: str) -> None:
@@ -188,6 +187,45 @@ class stage:
 
     def goto_saved_position (self, pos_name: str) -> None:
         self.goto(self.saved_positions[pos_name])
+
+    def get_closest_limit(self) -> float:
+        limits_dists = [9999]
+        mindist = 9999
+        for limit_type, dist in self.limits.items():
+            currdist = abs(self.pos - dist)
+            if mindist > currdist:
+                mindist = currdist
+        return min(limits_dists)
+
+    def return_closest_limit (pos) -> float:
+        closest_dist = 0
+        for limit_type, dist in self.limits.items():
+            if limit_type == LOWER:
+                if (pos <= dist):
+                    closest_dist = dist
+            elif limit_type == UPPER:
+                if (pos >= dist):
+                     closest_dist = dist
+            elif limit_type == STAGE:
+                for SN, lim in dist.items():
+                    motor = __main__.motors[int(SN)]
+                    if lim['parallel'] == -1: # Parallel case
+                        left = __main__.motors[lim['left'][0]]
+                        right = __main__.motors[lim['right'][0]]
+
+                        if left.serial_number == self.serial_number:
+                            dist = pos - right.pos
+
+                        else:
+                            dist = left.pos - pos
+
+                        if  dist > lim['dist']:
+                             closest_dist = dist
+
+                    elif lim['parallel'] == 1: # Antiparallel case
+                        within = pos + motor.pos <= lim['dist']
+        return self.pos
+
 
 class stage_linux (stage):
     """
@@ -287,34 +325,45 @@ class stage_windows (stage):
         self.stage.move_by(dist, blocking=False)
 
 
-# All distances are in encoder steps
-# TODO convert between encoder steps and millimeters 
+# 34555 steps per mm according to section 5.2 of the Z825BV documentation
 class stage_thorlabs (stage):
     def __init__ (self, stage, serno, name=None, saved_positions=[], limits=[], step_size=0.000030):
+        self.serno = serno
+        self.STEPSPERMM = 34555
         super().__init__(stage, name, saved_positions, limits, step_size)
-        self.serial_number = serno
-    
+        self.set_limit(LOWER, 0)
+        self.set_limit(UPPER, 24)
+        
+        
+    def _steps_to_mm (self, steps: int) -> float:
+        return float(steps) / self.STEPSPERMM
+
+    def _mm_to_steps (self, mm: float) -> int:
+        return int(mm * self.STEPSPERMM)
+
     @property
     def pos (self):
-        return self.stage.status['position']
+        return self._steps_to_mm(int(self.stage.status['position']))
     
     @pos.setter
     def pos (self, position):
         if not self.within_limits(position):
             return
+
+        position = self._mm_to_steps(position)
         self.stage.move_absolute(position=position) 
 
     @property
     def serial_number(self):
-        return self.serial_number
+        return self.serno
     
     @property
     def max_velocity (self):
-        return self.stage.velparams_['max_velocity']
+        return self.stage.jogparams_[0][0]['max_velocity']
 
     @property
     def acceleration (self):
-        return self.stage.velparams_['acceleration']
+        return self.stage.jogparams_[0][0]['acceleration']
     
     def home (self):
         self.stage.home()
@@ -326,14 +375,126 @@ class stage_thorlabs (stage):
     def goto (self, position):
         if not self.within_limits(position):
             return
+        
+        position = self._mm_to_steps(position)
         self.stage.move_absolute(position=position) 
 
     def step (self, dist):
         if not self.within_limits(self.pos + dist):
             return
+        
+        dist = self._mm_to_steps(dist)
         self.stage.move_relative(dist)
 
     # TODO implement jog from thorlabs_apt_device
+
+    def start_jog (self, direction, frame):
+        print(self.stage.jogparams_[0][0])
+        self.stage.set_jog_params(3455, 524, 1534735, continuous=True)
+
+        dir = 'forward'
+        if direction == -1:
+            dir = 'reverse'
+        
+        self.stage.move_jog(direction=dir)
+        self._jog(frame, direction)
+        self.jogging = True
+
+    def _jog (self, frame, dir):
+        # TODO Better checking of limits
+        lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
+        if not lim:
+            self.stop_jog(frame)
+        else:
+            self._jog_id = frame.after(1, self._jog, frame, dir)
+    
+    def stop_jog (self, frame):
+        if self.jogging:
+            frame.after_cancel(self._jog_id)
+            self.goto(self.return_closest_limit())
+        self.stage.stop(immediate=True)
+        self.jogging = False
+
+class stage_optosigma (stage):
+    def __init__ (self, stage, ser_no, name=None, saved_positions=[], limits=[], step_size=0.000030):
+        self.serial_number = serno
+        self.STEPSPERMM = 1
+        super().__init__(stage, name, saved_positions, limits, step_size)
+
+    def _steps_to_mm (self, steps: int) -> float:
+        return float(steps) / self.STEPSPERMM
+
+    def _mm_to_steps (self, mm: float) -> int:
+        return int(mm * self.STEPSPERMM)
+
+    @property
+    def pos (self) -> float:
+        return self._steps_to_mm(self.stage.position)
+
+    @pos.setter
+    def pos (self, position: float) -> None:
+        if not self.within_limits(position):
+            return
+            
+        self.stage.position = self._mm_to_steps(position)
+        self.stage.sleep_until_stop()
+
+    @property
+    def serial_number (self):
+        return self.serial_number
+
+    @property
+    def max_velocity (self) -> float:
+        pass
+
+    @property
+    def acceleration (self) -> float:
+        pass
+
+    def home (self) -> None:
+        self.stage.return_origin()
+        self.stage.sleep_until_stop()
+
+    def set_home (self, position: float) -> None:
+        pass
+
+    def goto (self, position: float) -> None:
+        if not self.within_limits(position):
+            return
+        
+        self.stage.position = self._mm_to_steps(positions)
+
+    def step (self, dist: float) -> None:
+        if not self.within_limits(self.pos + dist):
+            return
+
+        self.pos += self._mm_to_steps(dist)
+
+    def start_jog (self, direction, frame):
+        self.stage.set_jog_params(3455, 524, 1534735, continuous=True)
+
+        dir = '+'
+        if direction == -1:
+            dir = '-'
+        
+        self.stage.jog(direction=dir)
+        self._jog(frame, direction)
+        self.jogging = True
+
+    def _jog (self, frame, dir):
+        # TODO Better checking of limits
+        lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
+        if not lim:
+            self.stop_jog(frame)
+        else:
+            self._jog_id = frame.after(1, self._jog, frame, dir)
+    
+    def stop_jog (self, frame):
+        if self.jogging:
+            frame.after_cancel(self._jog_id)
+            self.goto(self.return_closest_limit())
+        self.stage.immediate_stop()
+        self.jogging = False 
 
 class stage_none (stage):
     """
