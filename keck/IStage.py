@@ -197,8 +197,8 @@ class stage:
                 mindist = currdist
         return min(limits_dists)
 
-    def return_closest_limit (pos) -> float:
-        closest_dist = 0
+    def return_closest_limit (self, pos) -> float:
+        closest_dist = pos
         for limit_type, dist in self.limits.items():
             if limit_type == LOWER:
                 if (pos <= dist):
@@ -224,7 +224,7 @@ class stage:
 
                     elif lim['parallel'] == 1: # Antiparallel case
                         within = pos + motor.pos <= lim['dist']
-        return self.pos
+        return closest_dist
 
 
 class stage_linux (stage):
@@ -352,6 +352,10 @@ class stage_thorlabs (stage):
 
         position = self._mm_to_steps(position)
         self.stage.move_absolute(position=position) 
+        
+    def _forcepos(self, position):
+        position = self._mm_to_steps(position)
+        self.stage.move_absolute(position=position) 
 
     @property
     def serial_number(self):
@@ -398,26 +402,29 @@ class stage_thorlabs (stage):
         
         self.stage.move_jog(direction=dir)
         self._jog(frame, direction)
-        self.jogging = True
+        self.forceStopped = False
 
     def _jog (self, frame, dir):
         # TODO Better checking of limits
         lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
         if not lim:
+            self.forceStopped = True
             self.stop_jog(frame)
         else:
             self._jog_id = frame.after(1, self._jog, frame, dir)
     
     def stop_jog (self, frame):
-        if self.jogging:
-            frame.after_cancel(self._jog_id)
-            self.goto(self.return_closest_limit())
         self.stage.stop(immediate=True)
-        self.jogging = False
+        if self.forceStopped:
+            frame.after_cancel(self._jog_id)
+            nearest_lim = self.return_closest_limit(self.pos)
+            print("Nearest:", nearest_lim)
+            self._forcepos(nearest_lim)
+        
 
 class stage_optosigma (stage):
     def __init__ (self, stage, ser_no, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        self.serial_number = serno
+        self.serial_number = ser_no
         self.STEPSPERMM = 1
         super().__init__(stage, name, saved_positions, limits, step_size)
 

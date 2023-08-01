@@ -19,6 +19,7 @@ elif platform == 'linux':
 from thorlabs_apt_device import KDC101
 from thorlabs_apt_device.devices import aptdevice
 
+import serial as ser
 import serial.tools as serial
 from optosigma import GSC01
 
@@ -46,7 +47,7 @@ def create_new_motor (manufacturere, identifier, name=None, positions={}, limits
         return IStage.stage_linux(stage, name, positions, limits, step)
     """
     if manufacturere == THORLABS:
-        return IStage.stage_thorlabs(KDC101(serial_number=identifier), int(identifier), name, positions, limits, step)
+        return IStage.stage_thorlabs(KDC101(identifier), identifier, name, positions, limits, step)
     elif manufacturere == OPTOSIGMA:
         return IStage.stage_optosigma(GSC01(identifier.device), int(device.serial_number), name, positions, limits, step)
 
@@ -99,13 +100,13 @@ def refresh_motors(window):
     elif platform == 'linux':
         stages = list(stg.find_stages())
     """
-
+    
     # Find thorlabs devices
     apt_devices = aptdevice.list_devices()
-    serial_numbers = re.findall("(?<=serial_number=)[0-9]*(?=,)", apt_devices)
+    serial_numbers = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Thorlabs)", apt_devices)
     for serial_number in serial_numbers:
-        motor = create_new_motor(THORLABS, serial_number)
         if serial_number not in motors:
+            motor = create_new_motor(THORLABS, serial_number)
             motors[serial_number] = motor
             active_motors.append(add_motor(window, serial_number))
     
