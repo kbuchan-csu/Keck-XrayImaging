@@ -2,8 +2,8 @@
 Real Space XRay Imaging
 
 # Requierments
-Python 3.10
-Git
+- Python 3.10
+- Git
 
 # Install
 ## Windows
