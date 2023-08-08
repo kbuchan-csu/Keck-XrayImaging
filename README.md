@@ -82,4 +82,4 @@ Example of an entry in the config is:
     }
 ```
 # Additional
-If the stages are removed from wall power they must be rehomed before use. The homing must be preformed at the stage controller not in the software. If not homed the stages will over volt when told to go to a position an must be powered off and on to fix the over volt, then homed.
+Thorlabs stages are homed on start up, so important locations before turning off the stages. Note: Thorlabs stages loose their position when they loose power.
