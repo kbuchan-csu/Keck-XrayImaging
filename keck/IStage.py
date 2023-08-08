@@ -226,105 +226,6 @@ class stage:
                         within = pos + motor.pos <= lim['dist']
         return closest_dist
 
-
-class stage_linux (stage):
-    """
-        Class for Linux systems
-        blocking = True --> Non blocking actions
-        stage is the raw stage from `list(stg.find_stages())`
-    """
-    def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        super().__init__(stage, name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
-
-    @property
-    def pos (self):
-        return self.stage.pos
-
-    @pos.setter
-    def pos (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.set_pos(position, blocking=True)
-
-    @property
-    def serial_number (self):
-        return self.stage.ser_no
-
-    @property
-    def max_velocity (self):
-        return self.stage.max_vel
-
-    @property
-    def acceleration (self):
-        return self.stage.accn
-
-    def home (self):
-        self.stage.move_home(blocking=True)
-
-    def set_home (self, position):
-        home_params = self.stage.get_move_home_params
-        self.stage.set_home_params(home_params[0], home_params[1], home_params[2], home_offset_distance = position)
-
-    def goto (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.set_pos(position, blocking=True)
-
-    def step (self, dist):
-        if not self.within_limits(self.pos + dist):
-            return
-        self.stage.move_by(dist, blocking=True)
-
-class stage_windows (stage):
-    """
-        Class for Windows systems
-        blocking = False --> Non blocking actions
-        serial_number is second number in `apt.list_available_devices()` tupel
-    """
-    def __init__ (self, serial_number, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        super().__init__(apt.Motor(serial_number), name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
-
-    @property
-    def pos (self):
-        return self.stage.position
-
-    @pos.setter
-    def pos (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.position = position
-
-    @property
-    def serial_number (self):
-        return self.stage.serial_number
-
-    @property
-    def max_velocity (self):
-        return self.stage.get_dc_joystick_parameters()[1]
-
-    @property
-    def acceleration (self):
-        return self.stage.get_dc_joystick_parameters()[3]
-
-    def home (self):
-        self.stage.move_home(False)
-
-    def set_home (self, position):
-        home_params = self.stage.get_move_home_parameters()
-        self.stage.set_move_home_parameters(home_params[0], home_params[1], home_params[2], position)
-
-    
-    def goto (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.move_to(position, blocking=False)
-
-    def step (self, dist):
-        if not self.within_limits(self.pos + dist):
-            return
-        self.stage.move_by(dist, blocking=False)
-
-
 # 34555 steps per mm according to section 5.2 of the Z825BV documentation
 class stage_thorlabs (stage):
     def __init__ (self, stage, serno, name=None, saved_positions=[], limits=[], step_size=0.000030):
@@ -401,8 +302,8 @@ class stage_thorlabs (stage):
             dir = 'reverse'
         
         self.stage.move_jog(direction=dir)
-        self._jog(frame, direction)
         self.forceStopped = False
+        self._jog(frame, direction)
 
     def _jog (self, frame, dir):
         # TODO Better checking of limits
@@ -418,13 +319,12 @@ class stage_thorlabs (stage):
         if self.forceStopped:
             frame.after_cancel(self._jog_id)
             nearest_lim = self.return_closest_limit(self.pos)
-            print("Nearest:", nearest_lim)
             self._forcepos(nearest_lim)
         
 
 class stage_optosigma (stage):
     def __init__ (self, stage, ser_no, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        self.serial_number = ser_no
+        self.serno = ser_no
         self.STEPSPERMM = 1
         super().__init__(stage, name, saved_positions, limits, step_size)
 
@@ -446,9 +346,13 @@ class stage_optosigma (stage):
         self.stage.position = self._mm_to_steps(position)
         self.stage.sleep_until_stop()
 
+    def _forcepos (self, position):
+        self.stage.position = self._mm_to_steps(position)
+        self.stage.sleep_until_stop()
+    
     @property
     def serial_number (self):
-        return self.serial_number
+        return self.serno
 
     @property
     def max_velocity (self) -> float:
@@ -469,7 +373,7 @@ class stage_optosigma (stage):
         if not self.within_limits(position):
             return
         
-        self.stage.position = self._mm_to_steps(positions)
+        self.stage.position = self._mm_to_steps(position)
 
     def step (self, dist: float) -> None:
         if not self.within_limits(self.pos + dist):
@@ -478,30 +382,29 @@ class stage_optosigma (stage):
         self.pos += self._mm_to_steps(dist)
 
     def start_jog (self, direction, frame):
-        self.stage.set_jog_params(3455, 524, 1534735, continuous=True)
-
         dir = '+'
         if direction == -1:
             dir = '-'
         
         self.stage.jog(direction=dir)
+        self.forceStopped = False
         self._jog(frame, direction)
-        self.jogging = True
 
     def _jog (self, frame, dir):
         # TODO Better checking of limits
         lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
         if not lim:
+            self.forceStopped = True
             self.stop_jog(frame)
         else:
             self._jog_id = frame.after(1, self._jog, frame, dir)
     
     def stop_jog (self, frame):
-        if self.jogging:
-            frame.after_cancel(self._jog_id)
-            self.goto(self.return_closest_limit())
         self.stage.immediate_stop()
-        self.jogging = False 
+        if self.forceStopped:
+            frame.after_cancel(self._jog_id)
+            nearest_lim = self.return_closest_limit(self.pos)
+            self._forcepos(nearest_lim)
 
 class stage_none (stage):
     """

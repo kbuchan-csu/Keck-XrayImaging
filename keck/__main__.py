@@ -49,7 +49,7 @@ def create_new_motor (manufacturere, identifier, name=None, positions={}, limits
     if manufacturere == THORLABS:
         return IStage.stage_thorlabs(KDC101(identifier), identifier, name, positions, limits, step)
     elif manufacturere == OPTOSIGMA:
-        return IStage.stage_optosigma(GSC01(identifier.device), int(device.serial_number), name, positions, limits, step)
+        return IStage.stage_optosigma(GSC01(identifier), identifier, name, positions, limits, step)
 
 def save ():
     global motors
@@ -103,24 +103,23 @@ def refresh_motors(window):
     
     # Find thorlabs devices
     apt_devices = aptdevice.list_devices()
-    serial_numbers = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Thorlabs)", apt_devices)
-    for serial_number in serial_numbers:
-        if serial_number not in motors:
-            motor = create_new_motor(THORLABS, serial_number)
-            motors[serial_number] = motor
-            active_motors.append(add_motor(window, serial_number))
+    print(apt_devices)
+    devices = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Thorlabs)", apt_devices)
+    for device in devices:
+        if device not in motors:
+            motor = create_new_motor(THORLABS, device)
+            motors[device] = motor
+            active_motors.append(add_motor(window, device))
     
     
-    # TODO Find optosigma devices
-    """
-    optosigma_devices = serial.grep("optosigma")
-    for device in optosigma_devices:
-        motor = create_new_motor(OPTOSIGMA, device)
-        SN = motor.serial_number
-        if SN not in motors:
-            motors[SN] = motor
-            active_motors.append(add_motor(window, SN))
-    """
+    # Find optosigma devices
+    #optosigma_devices = serial.grep("optosigma")
+    devices = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Prolific)", apt_devices)
+    for device in devices:
+        if device not in motors:
+            motor = create_new_motor(OPTOSIGMA, device)
+            motors[device] = motor
+            active_motors.append(add_motor(window, device))
 
 
     """
