@@ -87,7 +87,7 @@ def refresh_motors(window):
             motors[device] = motor
             active_motors.append(add_motor(window, device))
     
-    
+    """
     # Find optosigma devices
     #optosigma_devices = serial.grep("optosigma")
     devices = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Prolific)", apt_devices)
@@ -96,7 +96,7 @@ def refresh_motors(window):
             motor = create_new_motor(OPTOSIGMA, device)
             motors[device] = motor
             active_motors.append(add_motor(window, device))
-
+    """
     
     for motor in active_motors:
         motor.refresh_limits()
