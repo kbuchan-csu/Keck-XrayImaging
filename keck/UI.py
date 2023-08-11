@@ -120,6 +120,8 @@ class motor_controls:
         if name != "":
             if not (name in self.stage.saved_positions.keys()):
                 drop_down['menu'].add_command(label=name, command=lambda: self._load_postion(string_var, name))
+            else:
+                print("Err: Tryed to Save Position with Already Used Name")
             self.stage.save_position(name)
             string_var.set(name)
 
@@ -153,20 +155,19 @@ class motor_controls:
         motor_control.pack()
 
         # Drop down window for selecting and saving positions
-        current_selected_position = tk.StringVar()
-        current_selected_position.set('Saved Positions')
+        self.current_selected_position = tk.StringVar()
+        self.current_selected_position.set('Saved Positions')
         
-        saved_positions = tk.OptionMenu(motor_control, current_selected_position, [])
-        saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
+        self.saved_positions = tk.OptionMenu(motor_control, self.current_selected_position, [])
+        self.saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
 
-        saved_positions['menu'].delete(0, 'end')
-        saved_positions['menu'].add_command(label="+", command=lambda: self._save_position(saved_positions, current_selected_position))
-        saved_positions['menu'].add_command(label="Home", command=lambda: self._home_motor(current_selected_position))
-        saved_positions['menu'].add_command(label="Set Home", command=lambda: self._set_motor_home(current_selected_position))
-        saved_positions['menu'].add_separator()
-
-        for saved in self.stage.saved_positions.keys():
-            saved_positions['menu'].add_command(label=saved, command=lambda: self._load_postion(current_selected_position, saved))
+        self.saved_positions['menu'].delete(0, 'end')
+        self.saved_positions['menu'].add_command(label="+", command=lambda: self._save_position(self.saved_positions, self.current_selected_position))
+        self.saved_positions['menu'].add_command(label="Home", command=lambda: self._home_motor(self.current_selected_position))
+        self.saved_positions['menu'].add_command(label="Set Home", command=lambda: self._set_motor_home(self.current_selected_position))
+        self.saved_positions['menu'].add_separator()
+        
+        self.refresh_positions()
         
         """
         # Button to close the motor UI
@@ -238,6 +239,12 @@ class motor_controls:
 
         limit_set['menu'].add_cascade(label="MOTOR", menu=self.avaliable_motors)
 
+    def refresh_positions(self):
+        
+        self.saved_positions['menu'].delete(4, 'end')
+        for saved in self.stage.saved_positions.keys():
+            self.saved_positions['menu'].add_command(label=saved, command=lambda: self._load_postion(self.current_selected_position, saved))
+    
     def refresh_limits(self):
         self.avaliable_motors.delete(0, 'end')
 

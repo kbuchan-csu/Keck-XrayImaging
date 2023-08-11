@@ -5,16 +5,6 @@ import sys
 import IStage
 import json
 import re
-
-"""
-# PLATFORM SPECIFIC IMPORTS
-platform = sys.platform
-if platform == 'win32':
-    import thorlabs_apt as apt          # windows thorlabs wrapper
-    
-elif platform == 'linux':
-    import stage.motor_ini.core as stg  # linux thorlabs wrapper
-"""
     
 from thorlabs_apt_device import KDC101
 from thorlabs_apt_device.devices import aptdevice
@@ -38,14 +28,6 @@ active_motors = []
 """
 
 def create_new_motor (manufacturere, identifier, name=None, positions={}, limits={}, step=0.000030):
-    """
-    if stage is None:
-        return IStage.stage_none(stage, name, positions, limits, step)
-    elif platform == 'win32':
-        return IStage.stage_windows(stage[1], name, positions, limits, step)
-    elif platform == 'linux':
-        return IStage.stage_linux(stage, name, positions, limits, step)
-    """
     if manufacturere == THORLABS:
         return IStage.stage_thorlabs(KDC101(identifier), identifier, name, positions, limits, step)
     elif manufacturere == OPTOSIGMA:
@@ -71,14 +53,14 @@ def load(window):
     
     print(data)
 
-    for SN, value in data.items():
+    for SN, settings in data.items():
         for sn, motor in motors.items():
-            if int(sn) == int(SN):
-                motor.load(value['name'], value['step'], value['positions'], value['limits'])
+            if sn == SN:
+                motor.load(settings['name'], settings['step'], settings['positions'], settings['limits'])
+                motor.refresh_positions()
+                motor.refresh_limits()
                 break
-
-    for motor in active_motors:
-        motor.refresh_limits()
+        
 
 def add_motor (window, SN):
     global motors
@@ -94,12 +76,6 @@ def refresh_motors(window):
 
     active_motors = []
 
-    """
-    if platform == 'win32':
-        stages = apt.list_available_devices()
-    elif platform == 'linux':
-        stages = list(stg.find_stages())
-    """
     
     # Find thorlabs devices
     apt_devices = aptdevice.list_devices()
@@ -121,16 +97,6 @@ def refresh_motors(window):
             motors[device] = motor
             active_motors.append(add_motor(window, device))
 
-
-    """
-    stages = []
-    for stage in stages:
-        motor = create_new_motor(stage)
-        SN = motor.serial_number
-        if SN not in motors:
-            motors[SN] = motor
-            active_motors.append(add_motor(window, SN))
-    """
     
     for motor in active_motors:
         motor.refresh_limits()

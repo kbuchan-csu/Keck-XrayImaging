@@ -145,6 +145,7 @@ class stage:
         self.saved_positions = positions
         self.limits = limits
 
+        print(self.saved_positions)
         print(self.limits)
 
     def within_limits (self, pos: float) -> bool:
@@ -290,8 +291,6 @@ class stage_thorlabs (stage):
         
         dist = self._mm_to_steps(dist)
         self.stage.move_relative(dist)
-
-    # TODO implement jog from thorlabs_apt_device
 
     def start_jog (self, direction, frame):
         print(self.stage.jogparams_[0][0])
