@@ -1,19 +1,4 @@
-import sys
 import tkinter as tk
-
-"""
-# PLATFORM SPECIFIC IMPORTS + GUARDS
-platform = sys.platform
-if platform == 'win32':
-    import thorlabs_apt as apt          # windows thorlabs wrapper
-
-elif platform == 'linux':
-    import stage.motor_ini.core as stg  # linux thorlabs wrapper
-"""
-
-from thorlabs_apt_device import KDC101
-
-import optosigma as OPTO
 import __main__
 
 # Limit types
@@ -154,9 +139,9 @@ class stage:
         Parallel works when left motor position > right motor position when set, or when right motor can not extedn into left motor
         if right motor can extend into left motor does not work
         """
+        # TODO Make this better, has problems with stage overrun and would be good to fix this issue
         within = True
         for limit_type, dist in self.limits.items():
-            # print(limit_type, dist, pos)
             if limit_type == LOWER:
                 within = within and (pos >= dist)
             elif limit_type == UPPER:
@@ -305,7 +290,6 @@ class stage_thorlabs (stage):
         self._jog(frame, direction)
 
     def _jog (self, frame, dir):
-        # TODO Better checking of limits
         lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
         if not lim:
             self.forceStopped = True
@@ -324,6 +308,8 @@ class stage_thorlabs (stage):
 class stage_optosigma (stage):
     def __init__ (self, stage, ser_no, name=None, saved_positions=[], limits=[], step_size=0.000030):
         self.serno = ser_no
+        # STEPSPERMM needs to be determined, currently at 1 becasue of testing, 
+        # so if currently implemented all positions will need to be in terms of steps
         self.STEPSPERMM = 1
         super().__init__(stage, name, saved_positions, limits, step_size)
 
@@ -390,7 +376,6 @@ class stage_optosigma (stage):
         self._jog(frame, direction)
 
     def _jog (self, frame, dir):
-        # TODO Better checking of limits
         lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
         if not lim:
             self.forceStopped = True
@@ -407,7 +392,7 @@ class stage_optosigma (stage):
 
 class stage_none (stage):
     """
-        Class for testing and unsuported systems
+        Class for testing
     """
     def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
         self.poss = -999
