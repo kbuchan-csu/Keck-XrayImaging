@@ -4,33 +4,40 @@ import UI # import custom UI elements to main
 import sys
 import IStage
 import json
+import re
 
-# PLATFORM SPECIFIC IMPORTS
-platform = sys.platform
-if platform == 'win32':
-    import thorlabs_apt as apt          # windows thorlabs wrapper
-    
-elif platform == 'linux':
-    import stage.motor_ini.core as stg  # linux thorlabs wrapper
+import serial as ser
+import serial.tools as serial
 
+# Thorlabs python conntroller
+from thorlabs_apt_device import KDC101
+from thorlabs_apt_device.devices import aptdevice
+
+# Optosigma python conntroller
+from optosigma import GSC01
+
+# Comparison defines
+THORLABS = 'thorlabs'
+OPTOSIGMA = 'optosigma'
+
+# Main globals
 motor_id = 0
 motors = {}
 active_motors = []
 
 """
-    Thor labs 3 axis stage limits
+    Thor labs 3 axis stage limits:
+            These are the currently agreed upon limits for 
+            how far a stage should be able to travel in each axis
         X axis upper limit: 22 mm
         Y axis upper limit: 22 mm
         Z axis upper limit: 24 mm
 """
-
-def create_new_motor (stage, name=None, positions={}, limits={}, step=0.000030):
-    if stage is None:
-        return IStage.stage_none(stage, name, positions, limits, step)
-    elif platform == 'win32':
-        return IStage.stage_windows(stage[1], name, positions, limits, step)
-    elif platform == 'linux':
-        return IStage.stage_linux(stage, name, positions, limits, step)
+def create_new_motor (manufacturere, identifier, name=None, positions={}, limits={}, step=0.000030):
+    if manufacturere == THORLABS:
+        return IStage.stage_thorlabs(KDC101(identifier), identifier, name, positions, limits, step)
+    elif manufacturere == OPTOSIGMA:
+        return IStage.stage_optosigma(GSC01(identifier), identifier, name, positions, limits, step)
 
 def save ():
     global motors
@@ -52,14 +59,14 @@ def load(window):
     
     print(data)
 
-    for SN, value in data.items():
+    for SN, settings in data.items():
         for sn, motor in motors.items():
-            if int(sn) == int(SN):
-                motor.load(value['name'], value['step'], value['positions'], value['limits'])
+            if sn == SN:
+                motor.load(settings['name'], settings['step'], settings['positions'], settings['limits'])
+                motor.refresh_positions()
+                motor.refresh_limits()
                 break
-
-    for motor in active_motors:
-        motor.refresh_limits()
+        
 
 def add_motor (window, SN):
     global motors
@@ -74,18 +81,30 @@ def refresh_motors(window):
         motor.pack_forget()
 
     active_motors = []
-    
-    if platform == 'win32':
-        stages = apt.list_available_devices()
-    elif platform == 'linux':
-        stages = list(stg.find_stages())
 
-    for stage in stages:
-        motor = create_new_motor(stage)
-        SN = motor.serial_number
-        if SN not in motors:
-            motors[SN] = motor
-            active_motors.append(add_motor(window, SN))
+    
+    # Find thorlabs devices
+    apt_devices = aptdevice.list_devices()
+    print(apt_devices)
+    devices = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Thorlabs)", apt_devices)
+    for device in devices:
+        if device not in motors:
+            motor = create_new_motor(THORLABS, device)
+            motors[device] = motor
+            active_motors.append(add_motor(window, device))
+    
+    # TODO Implement optosigma devices
+    # Was not implemented due to stage slipping and time overrun
+    """
+    # Find optosigma devices
+    #optosigma_devices = serial.grep("optosigma")
+    devices = re.findall("(?<=device=)[A-Za-z0-9]*(?=, manufacturer=Prolific)", apt_devices)
+    for device in devices:
+        if device not in motors:
+            motor = create_new_motor(OPTOSIGMA, device)
+            motors[device] = motor
+            active_motors.append(add_motor(window, device))
+    """
     
     for motor in active_motors:
         motor.refresh_limits()
@@ -110,4 +129,3 @@ def main () -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-    print("Exit")

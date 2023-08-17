@@ -79,7 +79,7 @@ class editable_label (tk.Label):
         self.textvariable = textvariable
         self.bind('<ButtonPress-1>', lambda event: self.edit(self))
 
-    def edit (self, parent):
+    def edit (self):
         name = dialog(self, "Set Stage Name", default_text=self.textvariable.get()).show().strip()
         if name != "":
             self.textvariable.set(name)
@@ -115,31 +115,33 @@ class motor_controls:
         text_area.config(text=f'{self.stage.pos:.5f}') # 5 decimal places after mm is 10 nm
         text_area.after(1, self.motor_position_update, text_area)
 
-    def _save_position(self, drop_down, string_var):
-        name = dialog(drop_down, "Name New Saved Position").show().strip()
+    def _save_position(self):
+        name = dialog(self.saved_positions, "Name New Saved Position").show().strip()
         if name != "":
             if not (name in self.stage.saved_positions.keys()):
-                drop_down['menu'].add_command(label=name, command=lambda: self._load_postion(string_var, name))
+                self.saved_positions['menu'].add_command(label=name, command=lambda: self._load_postion(name))
+            else:
+                print("Err: Tryed to Save Position with Already Used Name")
             self.stage.save_position(name)
-            string_var.set(name)
+            self.current_selected_position.set(name)
 
-    def _home_motor (self, string_var):
+    def _home_motor (self):
         self.stage.home()
-        string_var.set("Home")
+        self.current_selected_position.set("Home")
 
-    def _set_motor_home (self, string_var):
+    def _set_motor_home (self):
         self.stage.set_home(self.stage.pos)
-        string_var.set("Home")
+        self.current_selected_position.set("Home")
 
-    def _load_postion(self, string_var, name):
-        string_var.set(name)
+    def _load_postion(self, name: str):
+        self.current_selected_position.set(name)
         self.stage.goto_saved_position(name)
 
     def drawTo (self, parent):
         """
         r\c |  0  | 1 | 2 |  3  | 4 |
         --- =========================
-         0  | Saved Positions |  X  |
+         0  |    Saved Positions    |
         --- +-----------------------+
          1  |      Stage Label      |
         --- +-----------------------+
@@ -153,26 +155,19 @@ class motor_controls:
         motor_control.pack()
 
         # Drop down window for selecting and saving positions
-        current_selected_position = tk.StringVar()
-        current_selected_position.set('Saved Positions')
+        self.current_selected_position = tk.StringVar()
+        self.current_selected_position.set('Saved Positions')
         
-        saved_positions = tk.OptionMenu(motor_control, current_selected_position, [])
-        saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
+        self.saved_positions = tk.OptionMenu(motor_control, self.current_selected_position, [])
+        self.saved_positions.grid(row=0, rowspan=1, column=0, columnspan=4)
 
-        saved_positions['menu'].delete(0, 'end')
-        saved_positions['menu'].add_command(label="+", command=lambda: self._save_position(saved_positions, current_selected_position))
-        saved_positions['menu'].add_command(label="Home", command=lambda: self._home_motor(current_selected_position))
-        saved_positions['menu'].add_command(label="Set Home", command=lambda: self._set_motor_home(current_selected_position))
-        saved_positions['menu'].add_separator()
-
-        for saved in self.stage.saved_positions.keys():
-            saved_positions['menu'].add_command(label=saved, command=lambda: self._load_postion(current_selected_position, saved))
+        self.saved_positions['menu'].delete(0, 'end')
+        self.saved_positions['menu'].add_command(label="+", command=lambda: self._save_position())
+        self.saved_positions['menu'].add_command(label="Home", command=lambda: self._home_motor())
+        self.saved_positions['menu'].add_command(label="Set Home", command=lambda: self._set_motor_home())
+        self.saved_positions['menu'].add_separator()
         
-        """
-        # Button to close the motor UI
-        close_motor = ...
-        close_motor.grid(row=0, rowspan=1, column=0, columnspan=5)
-        """
+        self.refresh_positions()
         
         # Label for the stage, can be editied when clicked 
         stage_label = editable_label(motor_control, self.stage.name)
@@ -238,6 +233,12 @@ class motor_controls:
 
         limit_set['menu'].add_cascade(label="MOTOR", menu=self.avaliable_motors)
 
+    def refresh_positions(self):
+        self.saved_positions['menu'].delete(4, 'end')
+
+        for saved in self.stage.saved_positions.keys():
+            self.saved_positions['menu'].add_command(label=saved, command=lambda: self._load_postion(saved))
+    
     def refresh_limits(self):
         self.avaliable_motors.delete(0, 'end')
 

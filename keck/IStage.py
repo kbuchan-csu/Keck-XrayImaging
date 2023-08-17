@@ -1,15 +1,4 @@
-import sys
 import tkinter as tk
-
-# PLATFORM SPECIFIC IMPORTS + GUARDS
-platform = sys.platform
-if platform == 'win32':
-    import thorlabs_apt as apt          # windows thorlabs wrapper
-
-elif platform == 'linux':
-    import stage.motor_ini.core as stg  # linux thorlabs wrapper
-
-#import optosigma as OPTO
 import __main__
 
 # Limit types
@@ -17,7 +6,7 @@ LOWER = '0'
 UPPER = '1'
 STAGE = '2'
 
-# Stage -> stage, name, step, saved_positions[], limits[], inverted, port(?)
+# Stage -> stage, name, step, saved_positions[], limits[]
 class stage:
     def __init__ (self, stage, name: str = None, saved_positions: dict = {}, limits: dict = {}, step_size: float = 0.000030):
         self.stage = stage 
@@ -141,6 +130,7 @@ class stage:
         self.saved_positions = positions
         self.limits = limits
 
+        print(self.saved_positions)
         print(self.limits)
 
     def within_limits (self, pos: float) -> bool:
@@ -149,9 +139,9 @@ class stage:
         Parallel works when left motor position > right motor position when set, or when right motor can not extedn into left motor
         if right motor can extend into left motor does not work
         """
+        # TODO Make this better, has problems with stage overrun and would be good to fix this issue
         within = True
         for limit_type, dist in self.limits.items():
-            # print(limit_type, dist, pos)
             if limit_type == LOWER:
                 within = within and (pos >= dist)
             elif limit_type == UPPER:
@@ -176,7 +166,6 @@ class stage:
                         within = pos + motor.pos <= lim['dist']
             if not within:
                 break
-        print (within)
         return within
 
     def save_position (self, pos_name: str) -> None:
@@ -185,106 +174,225 @@ class stage:
     def goto_saved_position (self, pos_name: str) -> None:
         self.goto(self.saved_positions[pos_name])
 
-class stage_linux (stage):
-    """
-        Class for Linux systems
-        blocking = True --> Non blocking actions
-        stage is the raw stage from `list(stg.find_stages())`
-    """
-    def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        super().__init__(stage, name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
+    def get_closest_limit(self) -> float:
+        limits_dists = [9999]
+        mindist = 9999
+        for limit_type, dist in self.limits.items():
+            currdist = abs(self.pos - dist)
+            if mindist > currdist:
+                mindist = currdist
+        return min(limits_dists)
+
+    def return_closest_limit (self, pos) -> float:
+        closest_dist = pos
+        for limit_type, dist in self.limits.items():
+            if limit_type == LOWER:
+                if (pos <= dist):
+                    closest_dist = dist
+            elif limit_type == UPPER:
+                if (pos >= dist):
+                     closest_dist = dist
+            elif limit_type == STAGE:
+                for SN, lim in dist.items():
+                    motor = __main__.motors[int(SN)]
+                    if lim['parallel'] == -1: # Parallel case
+                        left = __main__.motors[lim['left'][0]]
+                        right = __main__.motors[lim['right'][0]]
+
+                        if left.serial_number == self.serial_number:
+                            dist = pos - right.pos
+
+                        else:
+                            dist = left.pos - pos
+
+                        if  dist > lim['dist']:
+                             closest_dist = dist
+
+                    elif lim['parallel'] == 1: # Antiparallel case
+                        within = pos + motor.pos <= lim['dist']
+        return closest_dist
+
+# 34555 steps per mm according to section 5.2 of the Z825BV documentation
+class stage_thorlabs (stage):
+    def __init__ (self, stage, serno, name=None, saved_positions=[], limits=[], step_size=0.000030):
+        self.serno = serno
+        self.STEPSPERMM = 34555
+        super().__init__(stage, name, saved_positions, limits, step_size)
+        self.set_limit(LOWER, 0)
+        self.set_limit(UPPER, 24)
+        
+        
+    def _steps_to_mm (self, steps: int) -> float:
+        return float(steps) / self.STEPSPERMM
+
+    def _mm_to_steps (self, mm: float) -> int:
+        return int(mm * self.STEPSPERMM)
 
     @property
     def pos (self):
-        return self.stage.pos
-
-    @pos.setter
-    def pos (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.set_pos(position, blocking=True)
-
-    @property
-    def serial_number (self):
-        return self.stage.ser_no
-
-    @property
-    def max_velocity (self):
-        return self.stage.max_vel
-
-    @property
-    def acceleration (self):
-        return self.stage.accn
-
-    def home (self):
-        self.stage.move_home(blocking=True)
-
-    def set_home (self, position):
-        home_params = self.stage.get_move_home_params
-        self.stage.set_home_params(home_params[0], home_params[1], home_params[2], home_offset_distance = position)
-
-    def goto (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.set_pos(position, blocking=True)
-
-    def step (self, dist):
-        if not self.within_limits(self.pos + dist):
-            return
-        self.stage.move_by(dist, blocking=True)
-
-class stage_windows (stage):
-    """
-        Class for Windows systems
-        blocking = False --> Non blocking actions
-        serial_number is second number in `apt.list_available_devices()` tupel
-    """
-    def __init__ (self, serial_number, name=None, saved_positions=[], limits=[], step_size=0.000030):
-        super().__init__(apt.Motor(serial_number), name=name, saved_positions=saved_positions, limits=limits, step_size=step_size)
-
-    @property
-    def pos (self):
-        return self.stage.position
-
-    @pos.setter
-    def pos (self, position):
-        if not self.within_limits(position):
-            return
-        self.stage.position = position
-
-    @property
-    def serial_number (self):
-        return self.stage.serial_number
-
-    @property
-    def max_velocity (self):
-        return self.stage.get_dc_joystick_parameters()[1]
-
-    @property
-    def acceleration (self):
-        return self.stage.get_dc_joystick_parameters()[3]
-
-    def home (self):
-        self.stage.move_home(False)
-
-    def set_home (self, position):
-        home_params = self.stage.get_move_home_parameters()
-        self.stage.set_move_home_parameters(home_params[0], home_params[1], home_params[2], position)
-
+        return self._steps_to_mm(int(self.stage.status['position']))
     
+    @pos.setter
+    def pos (self, position):
+        if not self.within_limits(position):
+            return
+
+        position = self._mm_to_steps(position)
+        self.stage.move_absolute(position=position) 
+        
+    def _forcepos(self, position):
+        position = self._mm_to_steps(position)
+        self.stage.move_absolute(position=position) 
+
+    @property
+    def serial_number(self):
+        return self.serno
+    
+    @property
+    def max_velocity (self):
+        return self.stage.jogparams_[0][0]['max_velocity']
+
+    @property
+    def acceleration (self):
+        return self.stage.jogparams_[0][0]['acceleration']
+    
+    def home (self):
+        self.stage.home()
+
+    def set_home (self, position):
+        params = self.stage.homeparams_
+        self.stage.set_home_params(params['home_velocity'], position)
+
     def goto (self, position):
         if not self.within_limits(position):
             return
-        self.stage.move_to(position, blocking=False)
+        
+        position = self._mm_to_steps(position)
+        self.stage.move_absolute(position=position) 
 
     def step (self, dist):
         if not self.within_limits(self.pos + dist):
             return
-        self.stage.move_by(dist, blocking=False)
+        
+        dist = self._mm_to_steps(dist)
+        self.stage.move_relative(dist)
+
+    def start_jog (self, direction, frame):
+        print(self.stage.jogparams_[0][0])
+        self.stage.set_jog_params(3455, 524, 1534735, continuous=True)
+
+        dir = 'forward'
+        if direction == -1:
+            dir = 'reverse'
+        
+        self.stage.move_jog(direction=dir)
+        self.forceStopped = False
+        self._jog(frame, direction)
+
+    def _jog (self, frame, dir):
+        lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
+        if not lim:
+            self.forceStopped = True
+            self.stop_jog(frame)
+        else:
+            self._jog_id = frame.after(1, self._jog, frame, dir)
+    
+    def stop_jog (self, frame):
+        self.stage.stop(immediate=True)
+        if self.forceStopped:
+            frame.after_cancel(self._jog_id)
+            nearest_lim = self.return_closest_limit(self.pos)
+            self._forcepos(nearest_lim)
+        
+
+class stage_optosigma (stage):
+    def __init__ (self, stage, ser_no, name=None, saved_positions=[], limits=[], step_size=0.000030):
+        self.serno = ser_no
+        # STEPSPERMM needs to be determined, currently at 1 becasue of testing, 
+        # so if currently implemented all positions will need to be in terms of steps
+        self.STEPSPERMM = 1
+        super().__init__(stage, name, saved_positions, limits, step_size)
+
+    def _steps_to_mm (self, steps: int) -> float:
+        return float(steps) / self.STEPSPERMM
+
+    def _mm_to_steps (self, mm: float) -> int:
+        return int(mm * self.STEPSPERMM)
+
+    @property
+    def pos (self) -> float:
+        return self._steps_to_mm(self.stage.position)
+
+    @pos.setter
+    def pos (self, position: float) -> None:
+        if not self.within_limits(position):
+            return
+            
+        self.stage.position = self._mm_to_steps(position)
+        self.stage.sleep_until_stop()
+
+    def _forcepos (self, position):
+        self.stage.position = self._mm_to_steps(position)
+        self.stage.sleep_until_stop()
+    
+    @property
+    def serial_number (self):
+        return self.serno
+
+    @property
+    def max_velocity (self) -> float:
+        pass
+
+    @property
+    def acceleration (self) -> float:
+        pass
+
+    def home (self) -> None:
+        self.stage.return_origin()
+        self.stage.sleep_until_stop()
+
+    def set_home (self, position: float) -> None:
+        pass
+
+    def goto (self, position: float) -> None:
+        if not self.within_limits(position):
+            return
+        
+        self.stage.position = self._mm_to_steps(position)
+
+    def step (self, dist: float) -> None:
+        if not self.within_limits(self.pos + dist):
+            return
+
+        self.pos += self._mm_to_steps(dist)
+
+    def start_jog (self, direction, frame):
+        dir = '+'
+        if direction == -1:
+            dir = '-'
+        
+        self.stage.jog(direction=dir)
+        self.forceStopped = False
+        self._jog(frame, direction)
+
+    def _jog (self, frame, dir):
+        lim = self.within_limits(self.pos + self._steps_to_mm(200) * dir)
+        if not lim:
+            self.forceStopped = True
+            self.stop_jog(frame)
+        else:
+            self._jog_id = frame.after(1, self._jog, frame, dir)
+    
+    def stop_jog (self, frame):
+        self.stage.immediate_stop()
+        if self.forceStopped:
+            frame.after_cancel(self._jog_id)
+            nearest_lim = self.return_closest_limit(self.pos)
+            self._forcepos(nearest_lim)
 
 class stage_none (stage):
     """
-        Class for testing and unsuported systems
+        Class for testing
     """
     def __init__ (self, stage, name=None, saved_positions=[], limits=[], step_size=0.000030):
         self.poss = -999

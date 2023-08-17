@@ -1,43 +1,22 @@
 # Keck-XrayImaging
 Real Space XRay Imaging
 
+# Requierments
+(Must be added to path)
+- Python 3.10
+- Git command line
+
 # Install
 ## Windows
-Download all files from github repository then run
-```
-pip install -r requierments.txt
-```
-Follow these additional [install instructions](https://github.com/qpit/thorlabs_apt) (Only the Window/System32 directory seems to work)
+Download all files from github repository then run the installer
 
-The program should now run
+The Thorlabs stages will need to have virtual com port enabled in the device manager. This may or may not require the installation of the drivers from the Thorlabs website. The Virtual com port can be enabled by going to: Univeral Serial Bus Controllers --> APT USB Device --> Properties --> Advanced --> enable 'Load VCP'. This will have to be done for all APT USB Devices
 
 ## Linux
 Download all files from github repository then run
 ```
 pip install -r requierments.txt
 ```
-Go [here](https://github.com/kzhao1228/pystage_apt/tree/master)
-You will need to download the /stage/motor_ctrl/MG17APTServer.ini file as for some reason pip does not download it.
-You will need to find the install location of the pystage_apt module and the place the afomentioned file in <location>/stage/motor_ctrl/
-
-You will then need to go into /stage/motor_ini/core.py
-and in the 
-```
-        try:
-            #FIXME: this avoids an error related to https://github.com/walac/pyusb/issues/139
-            #FIXME: this could maybe be solved in a better way?
-            dev._langids = (1033, )
-            # KDC101 3-port is recognized as FTDI in newer kernels
-            if not (dev.manufacturer == 'Thorlabs' or dev.manufacturer == 'FTDI'):
-                ### raise Exception('No manufacturer found')
-                continue ### until the device is found
-        except usb.core.USBError:
-            print("No stage controller found: make sure your device is connected")
-            break
-```
-change the "break" to a "continue", this fixes an issue where the scanning of stages stops when it finds any usb item that isn't stage, this includes the camera built into most laptops
-
-After these changes are made the program should run without issues.
 
 # How to use
 ## General overview
@@ -69,10 +48,10 @@ Each stage is saved as the stage's serial number. The fields are as follows:
 - The user created name of the stage
 - The minimum step size in mm
 - The list of positions
-..- Each position is it's name followed by the position that the motor should go to.
+  - Each position is it's name followed by the position that the motor should go to.
 - The list of limits
-..- Each limit type has a number, where 0 is MIN, 1 is MAX, and 2 is MOTOR
-....- Motor limits are saved as the serial number of linked stage followed by the distace between the two stages at time of creation, wheter of not the limit is parallel "-1" or antiparallel "1", the left stage (serial number and position at time of creation) and the right stage (serial number and position at time of creation)
+  - Each limit type has a number, where 0 is MIN, 1 is MAX, and 2 is MOTOR
+    - Motor limits are saved as the serial number of linked stage followed by the distace between the two stages at time of creation, wheter of not the limit is parallel "-1" or antiparallel "1", the left stage (serial number and position at time of creation) and the right stage (serial number and position at time of creation)
         
 Example of an entry in the config is:
 ```
@@ -103,4 +82,51 @@ Example of an entry in the config is:
     }
 ```
 # Additional
-If the stages are removed from wall power they must be rehomed before use. The homing must be preformed at the stage controller not in the software. If not homed the stages will over volt when told to go to a position an must be powered off and on to fix the over volt, then homed.
+Thorlabs stages are homed on start up, so important locations before turning off the stages. Note: Thorlabs stages loose their position when they loose power.
+
+# User guide
+Default Limits:
+Thorlabs: 0mm - 24mm
+
+## General Use
+1. Power on Computer
+2. Power on Motors
+3. If the lose power they will required to be homed or their position will be wrong
+4. Launch application using ‘run.bat’
+5. The thorlabs stages will automatically home when the application starts
+6. Open up saved configuration by going to File → Load → \[configfile\].json
+
+## UI Instruction
+- Use the ‘<<’ & ‘>>’ for - and + jogging which stops when the button is released. When used on the current computer the jog is a little non-responsive and may take a moment to start and stop.
+
+- Use the ‘<’ & ‘>’ for - and + stepping which only moves one step for every push of the button. Default step size is 30 nm.
+
+- Press the position readout to tell the motor to go to a specific position in mm
+- Press the name of the motor to rename it
+
+- Click the ‘Home’ drop down to receive a list of saved positions, when selected the motor will move to that location and the dropdown's name will change
+  - The ‘+’ will create a new saved position at the current location
+  - The ‘Set Home’ button will set the home location to the current position
+
+- Click the ‘limits’ drop down to set up limits for the motors to never exceed
+  - The min and max limits will let you set them at any position from any position
+  - The motor limits will set a limit of the current distance between the current motor and the motor selected in it’s drop down
+  - The only way to remove limits and saved positions in by editing the configuration file
+
+### Config editing
+To edit the settings of the program you will have to locate and open the configuration file in a text editor such as notepad or notepad++. There you can edit the step size and remove saved locations or limits. When removing a limit the limit on both the current motor and the paired motor must be deleted.
+
+Limit removal is done under the limits section of the motor which is identified by its com port. For removing a min or max limit delete the ‘0’ or ‘1’ entry line. For removing a motor limit you look under section ‘2’ and find the block that corresponds to the motor limit you are removing. A block contains the motor’s com port as an identifier, distance, parallel value, left, and right. You will need to remove this block to remove the limit.
+If done incorrectly the config file will fail to load.
+
+To remove a position you will need to find the position name and delete that line.
+
+To save and load a configuration goto the top left of the application and click on file. There, the save and load options will be available. You will need to name your file every time you save and will have to select the correct configuration when loading. I suggest you know where these are saved.
+
+## First run
+When first run without having a configuration file you will want to identify the stages by setting a unique position and checking the controllers for the matching positions then renaming the stage in the application.
+
+If a stage is not being detected it may be because it is either off, not plugged in, or not configured.
+
+To configure a stage you must close the application and go to the windows ‘device manager’ and enable the virtual com port (VCP). To enable VCP you navigate through:Universal Serial Bus Controllers --> APT USB Device –(right click)-->  Properties --> Advanced --> enable 'Load VCP'. If the usb locations are changed this will have to be done again for every stage.
+
