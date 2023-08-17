@@ -5,28 +5,34 @@ import sys
 import IStage
 import json
 import re
-    
-from thorlabs_apt_device import KDC101
-from thorlabs_apt_device.devices import aptdevice
 
 import serial as ser
 import serial.tools as serial
+
+# Thorlabs python conntroller
+from thorlabs_apt_device import KDC101
+from thorlabs_apt_device.devices import aptdevice
+
+# Optosigma python conntroller
 from optosigma import GSC01
 
+# Comparison defines
 THORLABS = 'thorlabs'
 OPTOSIGMA = 'optosigma'
 
+# Main globals
 motor_id = 0
 motors = {}
 active_motors = []
 
 """
-    Thor labs 3 axis stage limits
+    Thor labs 3 axis stage limits:
+            These are the currently agreed upon limits for 
+            how far a stage should be able to travel in each axis
         X axis upper limit: 22 mm
         Y axis upper limit: 22 mm
         Z axis upper limit: 24 mm
 """
-
 def create_new_motor (manufacturere, identifier, name=None, positions={}, limits={}, step=0.000030):
     if manufacturere == THORLABS:
         return IStage.stage_thorlabs(KDC101(identifier), identifier, name, positions, limits, step)
@@ -87,6 +93,8 @@ def refresh_motors(window):
             motors[device] = motor
             active_motors.append(add_motor(window, device))
     
+    # TODO Implement optosigma devices
+    # Was not implemented due to stage slipping and time overrun
     """
     # Find optosigma devices
     #optosigma_devices = serial.grep("optosigma")
@@ -121,4 +129,3 @@ def main () -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-    print("Exit")
